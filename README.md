@@ -46,6 +46,12 @@ Para generar embeddings de prueba con GitHub Models:
 python -m src.embeddings --limit 20
 ```
 
+Para continuar una generacion interrumpida sin reprocesar chunks existentes:
+
+```bash
+python -m src.embeddings --resume --limit 50
+```
+
 La salida se guarda en `data/vectorstore/embeddings.json`. Esta fase usa `GITHUB_TOKEN`, `GITHUB_MODELS_ENDPOINT` y `EMBEDDING_MODEL` desde `.env`; todavia no implementa retrieval, vector search ni respuestas con LLM.
 
 ## Ejecución con Docker

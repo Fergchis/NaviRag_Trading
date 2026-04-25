@@ -77,39 +77,44 @@ def request_embeddings(
     return [item["embedding"] for item in payload.get("data", [])]
 
 
-def build_embedding_records(
+def load_existing_embeddings(output_file: Path = EMBEDDINGS_OUTPUT_FILE) -> list[dict]:
+    """Load existing embedding records when resuming work."""
+    if not output_file.exists():
+        return []
+
+    payload = json.loads(output_file.read_text(encoding="utf-8"))
+    return payload.get("embeddings", [])
+
+
+def build_embedding_records_for_batch(
     chunks: list[dict],
     token: str,
     endpoint: str,
     model: str,
-    batch_size: int = BATCH_SIZE,
 ) -> list[dict]:
-    """Generate embeddings and preserve chunk traceability."""
+    """Generate embedding records for one batch of chunks."""
     records = []
+    texts = [chunk.get("text", "") for chunk in chunks]
+    embeddings = request_embeddings(
+        texts=texts,
+        token=token,
+        endpoint=endpoint,
+        model=model,
+    )
 
-    for start in range(0, len(chunks), batch_size):
-        batch = chunks[start : start + batch_size]
-        texts = [chunk.get("text", "") for chunk in batch]
-        embeddings = request_embeddings(
-            texts=texts,
-            token=token,
-            endpoint=endpoint,
-            model=model,
+    for chunk, embedding in zip(chunks, embeddings, strict=True):
+        records.append(
+            {
+                "chunk_id": chunk.get("chunk_id"),
+                "file": chunk.get("file"),
+                "page": chunk.get("page"),
+                "page_chunk_index": chunk.get("page_chunk_index"),
+                "text": chunk.get("text"),
+                "character_count": chunk.get("character_count"),
+                "embedding": embedding,
+                "embedding_model": model,
+            }
         )
-
-        for chunk, embedding in zip(batch, embeddings, strict=True):
-            records.append(
-                {
-                    "chunk_id": chunk.get("chunk_id"),
-                    "file": chunk.get("file"),
-                    "page": chunk.get("page"),
-                    "page_chunk_index": chunk.get("page_chunk_index"),
-                    "text": chunk.get("text"),
-                    "character_count": chunk.get("character_count"),
-                    "embedding": embedding,
-                    "embedding_model": model,
-                }
-            )
 
     return records
 
@@ -136,20 +141,51 @@ def save_embeddings(
     )
 
 
-def generate_embeddings(limit: int | None = None) -> list[dict]:
-    """Generate embeddings for all chunks or for a limited test sample."""
-    chunks = load_chunks()
+def select_pending_chunks(
+    chunks: list[dict],
+    existing_records: list[dict],
+    limit: int | None = None,
+) -> list[dict]:
+    """Select chunks that do not have embeddings yet."""
+    embedded_ids = {record.get("chunk_id") for record in existing_records}
+    pending_chunks = [
+        chunk for chunk in chunks if chunk.get("chunk_id") not in embedded_ids
+    ]
     if limit is not None:
-        chunks = chunks[:limit]
+        pending_chunks = pending_chunks[:limit]
+    return pending_chunks
 
+
+def generate_embeddings(
+    limit: int | None = None,
+    resume: bool = False,
+) -> list[dict]:
+    """Generate embeddings, optionally resuming from existing records."""
+    chunks = load_chunks()
     config = load_embedding_config()
-    records = build_embedding_records(
+
+    records = load_existing_embeddings() if resume else []
+    pending_chunks = select_pending_chunks(
         chunks=chunks,
-        token=config["token"],
-        endpoint=config["endpoint"],
-        model=config["model"],
+        existing_records=records,
+        limit=limit,
     )
-    save_embeddings(records=records, model=config["model"])
+
+    for start in range(0, len(pending_chunks), BATCH_SIZE):
+        batch = pending_chunks[start : start + BATCH_SIZE]
+        new_records = build_embedding_records_for_batch(
+            chunks=batch,
+            token=config["token"],
+            endpoint=config["endpoint"],
+            model=config["model"],
+        )
+        records.extend(new_records)
+        save_embeddings(records=records, model=config["model"])
+        print(f"Lote guardado. Total acumulado: {len(records)}")
+
+    if not pending_chunks:
+        save_embeddings(records=records, model=config["model"])
+
     return records
 
 
@@ -160,7 +196,12 @@ def parse_args() -> Any:
         "--limit",
         type=int,
         default=None,
-        help="Cantidad maxima de chunks a procesar para pruebas.",
+        help="Cantidad maxima de chunks nuevos a procesar en esta ejecucion.",
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Continua desde embeddings existentes y evita reprocesar chunks.",
     )
     return parser.parse_args()
 
@@ -168,8 +209,8 @@ def parse_args() -> Any:
 def main() -> None:
     """Run embeddings generation from the command line."""
     args = parse_args()
-    records = generate_embeddings(limit=args.limit)
-    print(f"Embeddings generados: {len(records)}")
+    records = generate_embeddings(limit=args.limit, resume=args.resume)
+    print(f"Embeddings acumulados: {len(records)}")
     print(f"Salida: {EMBEDDINGS_OUTPUT_FILE}")
 
 
