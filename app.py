@@ -3,8 +3,7 @@
 import streamlit as st
 
 from src.config import APP_NAME, ORGANIZATION
-from src.generator import generate_placeholder_answer
-from src.retrieval import retrieve_placeholder_context
+from src.retrieval import retrieve
 from src.safety import is_forbidden_question
 
 
@@ -14,14 +13,16 @@ st.title(APP_NAME)
 st.caption(f"Demo educativa para {ORGANIZATION}")
 
 st.info(
-    "Esta versión inicial solo prepara la estructura del proyecto. "
-    "La ingesta de PDFs, embeddings, vector store y generación RAG real "
-    "se implementarán en etapas posteriores."
+    "NaviRag Trading recupera fragmentos desde documentos cargados con fines "
+    "educativos. No entrega senales de trading, recomendaciones financieras "
+    "ni asesoria de inversion."
 )
+
+top_k = st.slider("Cantidad de fragmentos a recuperar", min_value=1, max_value=5, value=3)
 
 question = st.text_area(
     "Pregunta educativa sobre los documentos cargados",
-    placeholder="Ejemplo: ¿Qué dice el material sobre gestión de riesgo?",
+    placeholder="Ejemplo: Que dice el material sobre gestion de riesgo?",
 )
 
 if st.button("Consultar", type="primary"):
@@ -29,27 +30,50 @@ if st.button("Consultar", type="primary"):
         st.warning("Ingresa una pregunta para continuar.")
     elif is_forbidden_question(question):
         st.error(
-            "No puedo entregar señales de compra o venta, recomendaciones "
-            "financieras ni asesoría de inversión. NaviRag Trading tiene un "
+            "No puedo entregar senales de compra o venta, recomendaciones "
+            "financieras ni asesoria de inversion. NaviRag Trading tiene un "
             "enfoque educativo y solo puede explicar conceptos presentes en "
             "los documentos cargados."
         )
     else:
-        context = retrieve_placeholder_context(question)
-        answer = generate_placeholder_answer(question, context)
+        try:
+            results = retrieve(question=question, top_k=top_k)
+        except FileNotFoundError as error:
+            st.error(str(error))
+            st.info("Genera embeddings antes de consultar desde la app.")
+        except RuntimeError as error:
+            st.error(
+                "No se pudo ejecutar retrieval. Revisa la configuracion de "
+                "GitHub Models, cuota, permisos o conectividad."
+            )
+            st.caption(str(error))
+        except Exception as error:
+            st.error("Ocurrio un error inesperado durante retrieval.")
+            st.caption(str(error))
+        else:
+            st.subheader("Pregunta")
+            st.write(question)
 
-        st.subheader("Respuesta")
-        st.write(answer)
+            st.subheader("Fragmentos recuperados")
+            if not results:
+                st.warning("No se recuperaron fragmentos para esta consulta.")
 
-        st.subheader("Fuentes o fragmentos recuperados")
-        st.write(
-            "Aún no hay fragmentos reales recuperados. Esta sección queda "
-            "reservada para mostrar documento, página y fragmento cuando se "
-            "implemente el flujo RAG."
-        )
+            for index, result in enumerate(results, start=1):
+                title = (
+                    f"{index}. {result.get('file')} | "
+                    f"pagina {result.get('page')} | "
+                    f"score {result.get('score', 0):.4f}"
+                )
+                with st.expander(title, expanded=index == 1):
+                    st.caption(
+                        f"chunk_id: {result.get('chunk_id')} | "
+                        f"page_chunk_index: {result.get('page_chunk_index')}"
+                    )
+                    st.write(result.get("text", ""))
 
-        st.subheader("Limitaciones")
-        st.write(
-            "La respuesta actual es un placeholder. No usa PDFs, embeddings, "
-            "vector store ni un modelo generativo."
-        )
+            st.subheader("Limitaciones")
+            st.write(
+                "Esta fase solo recupera fragmentos relevantes. Todavia no "
+                "genera una respuesta con LLM ni reemplaza la revision del "
+                "material fuente."
+            )
