@@ -1,16 +1,99 @@
-"""PDF ingestion placeholders.
+"""Simple PDF ingestion for NaviRag Trading.
 
-Real PDF extraction will be implemented in a later stage.
+This module only extracts text and basic metadata from PDFs placed in
+``data/raw``. It does not create embeddings, vector stores, retrieval results
+or LLM answers.
 """
 
+import json
+from datetime import datetime, timezone
+from importlib.util import find_spec
 from pathlib import Path
+from typing import Any
+
+from src.config import DATA_PROCESSED_DIR, DATA_RAW_DIR
+
+PROCESSED_OUTPUT_FILE = DATA_PROCESSED_DIR / "documents.json"
 
 
 def list_pdf_files(raw_dir: Path) -> list[Path]:
-    """Return PDF files available for future ingestion."""
+    """Return PDF files available for ingestion."""
     return sorted(raw_dir.glob("*.pdf"))
 
 
-def ingest_documents() -> list[dict]:
-    """Placeholder for PDF text extraction with metadata."""
-    return []
+def _require_pypdf() -> Any:
+    """Import pypdf only when ingestion is executed."""
+    if find_spec("pypdf") is None:
+        raise RuntimeError(
+            "Falta la dependencia 'pypdf'. Instala dependencias con "
+            "'pip install -r requirements.txt'."
+        )
+
+    from pypdf import PdfReader
+
+    return PdfReader
+
+
+def extract_pdf_pages(pdf_path: Path) -> list[dict]:
+    """Extract page text and metadata from one PDF file."""
+    PdfReader = _require_pypdf()
+    reader = PdfReader(str(pdf_path))
+    pages = []
+
+    for page_index, page in enumerate(reader.pages, start=1):
+        text = page.extract_text() or ""
+        clean_text = text.strip()
+        pages.append(
+            {
+                "file": pdf_path.name,
+                "path": str(pdf_path),
+                "page": page_index,
+                "text": clean_text,
+                "character_count": len(clean_text),
+            }
+        )
+
+    return pages
+
+
+def ingest_documents(
+    raw_dir: Path = DATA_RAW_DIR,
+    output_file: Path = PROCESSED_OUTPUT_FILE,
+) -> list[dict]:
+    """Extract text from all PDFs and save a processed JSON file."""
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+
+    pdf_files = list_pdf_files(raw_dir)
+    documents = []
+
+    for pdf_file in pdf_files:
+        documents.extend(extract_pdf_pages(pdf_file))
+
+    payload = {
+        "system": "NaviRag Trading",
+        "description": "Texto extraido desde PDFs locales para uso educativo.",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "source_dir": str(raw_dir),
+        "total_pdf_files": len(pdf_files),
+        "total_pages": len(documents),
+        "documents": documents,
+    }
+
+    output_file.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    return documents
+
+
+def main() -> None:
+    """Run ingestion from the command line."""
+    documents = ingest_documents()
+    print(f"Ingesta completada. Paginas procesadas: {len(documents)}")
+    print(f"Salida: {PROCESSED_OUTPUT_FILE}")
+
+
+if __name__ == "__main__":
+    main()

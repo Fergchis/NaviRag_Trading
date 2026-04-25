@@ -20,6 +20,18 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
+## Ingesta simple de PDFs
+
+Coloca los PDFs educativos de trading en `data/raw/`. Esa carpeta es solo para el corpus documental de NaviRag Trading.
+
+Luego ejecuta:
+
+```bash
+python -m src.ingest
+```
+
+La salida procesada se guarda en `data/processed/documents.json`. Esta fase solo extrae texto y metadatos basicos por archivo y pagina; todavia no genera embeddings, vector store, retrieval ni respuestas con LLM.
+
 ## Ejecución con Docker
 
 ```bash
