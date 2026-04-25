@@ -32,6 +32,14 @@ python -m src.ingest
 
 La salida procesada se guarda en `data/processed/documents.json`. Esta fase solo extrae texto y metadatos basicos por archivo y pagina; todavia no genera embeddings, vector store, retrieval ni respuestas con LLM.
 
+Para generar chunks trazables desde el texto procesado:
+
+```bash
+python -m src.chunking
+```
+
+La salida se guarda en `data/processed/chunks.json`.
+
 ## Ejecución con Docker
 
 ```bash
