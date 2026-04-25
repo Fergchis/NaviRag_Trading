@@ -40,6 +40,14 @@ python -m src.chunking
 
 La salida se guarda en `data/processed/chunks.json`.
 
+Para generar embeddings de prueba con GitHub Models:
+
+```bash
+python -m src.embeddings --limit 20
+```
+
+La salida se guarda en `data/vectorstore/embeddings.json`. Esta fase usa `GITHUB_TOKEN`, `GITHUB_MODELS_ENDPOINT` y `EMBEDDING_MODEL` desde `.env`; todavia no implementa retrieval, vector search ni respuestas con LLM.
+
 ## Ejecución con Docker
 
 ```bash
