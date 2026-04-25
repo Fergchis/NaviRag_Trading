@@ -1,19 +1,78 @@
+# =========================
+# Python
+# =========================
 __pycache__/
 *.py[cod]
+*.pyo
+*.pyd
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.coverage
+htmlcov/
 
+# =========================
+# Entornos virtuales
+# =========================
 .env
+.env.*
+!.env.example
 .venv/
 venv/
+env/
+ENV/
+
+# =========================
+# Dependencias temporales de Codex
+# =========================
 .codex_deps/
 
+# =========================
+# Streamlit
+# =========================
+.streamlit/secrets.toml
+
+# =========================
+# Datos del proyecto
+# =========================
 data/raw/*
 !data/raw/.gitkeep
+
 data/processed/*
 !data/processed/.gitkeep
+
 data/vectorstore/*
 !data/vectorstore/.gitkeep
 
-.streamlit/secrets.toml
+# =========================
+# Material de referencia de clase
+# No subir al repositorio
+# =========================
+_referencias_clase/
+referencias_clase/
+*.zip
+
+# =========================
+# Notebooks / checkpoints
+# =========================
+.ipynb_checkpoints/
+
+# =========================
+# Sistema operativo
+# =========================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# =========================
+# Editores
+# =========================
+.vscode/
+.idea/
+
+# =========================
+# Logs y temporales
+# =========================
+*.log
+*.tmp
+*.temp
