@@ -54,6 +54,12 @@ python -m src.embeddings --resume --limit 50
 
 La salida se guarda en `data/vectorstore/embeddings.json`. Esta fase usa `GITHUB_TOKEN`, `GITHUB_MODELS_ENDPOINT` y `EMBEDDING_MODEL` desde `.env`; todavia no implementa retrieval, vector search ni respuestas con LLM.
 
+Para probar retrieval local por similitud coseno:
+
+```bash
+python -m src.retrieval "que dice el material sobre gestion de riesgo" --top-k 3
+```
+
 ## Ejecución con Docker
 
 ```bash
