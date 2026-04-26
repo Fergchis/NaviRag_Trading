@@ -3,6 +3,7 @@
 import streamlit as st
 
 from src.config import APP_NAME, ORGANIZATION
+from src.generator import generate_answer
 from src.retrieval import retrieve
 from src.safety import is_forbidden_question
 
@@ -42,17 +43,35 @@ if st.button("Consultar", type="primary"):
             st.error(str(error))
             st.info("Genera embeddings antes de consultar desde la app.")
         except RuntimeError as error:
+            _ = error
             st.error(
                 "No se pudo ejecutar retrieval. Revisa la configuracion de "
                 "GitHub Models, cuota, permisos o conectividad."
             )
-            st.caption(str(error))
         except Exception as error:
+            _ = error
             st.error("Ocurrio un error inesperado durante retrieval.")
-            st.caption(str(error))
         else:
             st.subheader("Pregunta")
             st.write(question)
+
+            st.subheader("Respuesta educativa")
+            if not results:
+                st.warning("No se recuperaron fragmentos para esta consulta.")
+
+            try:
+                answer = generate_answer(question=question, chunks=results)
+            except RuntimeError as error:
+                _ = error
+                st.error(
+                    "No se pudo generar la respuesta con LLM. Revisa la "
+                    "configuracion del proveedor de chat."
+                )
+            except Exception as error:
+                _ = error
+                st.error("Ocurrio un error inesperado durante la generacion.")
+            else:
+                st.write(answer)
 
             st.subheader("Fragmentos recuperados")
             if not results:
@@ -73,7 +92,7 @@ if st.button("Consultar", type="primary"):
 
             st.subheader("Limitaciones")
             st.write(
-                "Esta fase solo recupera fragmentos relevantes. Todavia no "
-                "genera una respuesta con LLM ni reemplaza la revision del "
-                "material fuente."
+                "La respuesta se genera solo desde los fragmentos recuperados. "
+                "No reemplaza la revision del material fuente ni constituye "
+                "asesoria financiera."
             )
