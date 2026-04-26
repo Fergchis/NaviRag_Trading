@@ -4,25 +4,25 @@
 
 Se usa Streamlit porque permite ejecutar una demo academica local con baja friccion, mostrar la pregunta, la respuesta y las fuentes recuperadas en una misma interfaz, y explicar el flujo RAG sin infraestructura adicional.
 
-## Vectorstore local JSON
+## MongoDB Atlas Vector Search
 
-El vectorstore se guarda como JSON local en `data/vectorstore/embeddings.json` para mantener la entrega auditable y simple. Cada registro conserva `chunk_id`, archivo, pagina, texto, metadatos y embedding.
+MongoDB Atlas Vector Search se usa como vectorstore principal para acercar la arquitectura a los ejemplos de Clase 1.4. La base configurada por defecto es `navirag` y cada documento conserva `chunk_id`, texto, embedding, modelo y metadatos trazables como archivo, pagina e indice de chunk.
 
-Esta decision evita depender de servicios externos de almacenamiento durante la evaluacion academica. Tambien permite inspeccionar manualmente el resultado de ingesta, chunking y embeddings.
+El JSON local en `data/vectorstore/embeddings.json` puede mantenerse como artefacto historico ignorado por Git, pero no forma parte del runtime de retrieval.
 
-La limitacion es clara: JSON local no esta pensado para produccion, alta concurrencia, grandes volumenes ni busquedas vectoriales optimizadas.
+La limitacion es clara: Atlas requiere configuracion externa, variables locales y un indice vectorial creado en la coleccion.
 
 ## Similitud coseno
 
-El retrieval usa similitud coseno porque compara la orientacion entre vectores de embeddings y es una metrica estandar para recuperar texto semanticamente cercano. Para una demo parcial con pocos cientos de embeddings, calcular la similitud en memoria es suficiente y facil de defender.
+El retrieval usa `$vectorSearch` en MongoDB Atlas con similitud coseno porque compara la orientacion entre vectores de embeddings y es una metrica estandar para recuperar texto semanticamente cercano.
 
-No se agregan indices vectoriales especializados porque el alcance no requiere optimizacion de escala.
+El indice vectorial configurado usa el campo `embedding`, 1536 dimensiones y similitud coseno.
 
-## Diferencia con ejemplos de clase basados en MongoDB Atlas
+## Alineacion con ejemplos de clase basados en MongoDB Atlas
 
-Algunos ejemplos de clase pueden usar MongoDB Atlas u otros servicios administrados para busqueda vectorial. NaviRag Trading conserva un vectorstore local JSON porque la entrega prioriza reproducibilidad local, trazabilidad y minimo acoplamiento tecnologico.
+Los ejemplos de clase usan MongoDB Atlas para busqueda vectorial. NaviRag Trading adopta ese enfoque como unico vectorstore operativo.
 
-La arquitectura podria migrar a un motor vectorial externo en una etapa futura, pero eso no forma parte de esta entrega.
+La migracion aun no elimina los artefactos JSON fisicos para evitar perder evidencia local.
 
 ## Sin mercado en vivo
 

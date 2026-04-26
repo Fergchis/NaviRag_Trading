@@ -2,7 +2,7 @@
 
 NaviRag Trading es una demo RAG educativa para **Iwakura Trading Academy** orientada a consultar PDFs de trading con trazabilidad documental.
 
-El sistema permite cargar PDFs locales, extraer texto, generar chunks trazables, crear embeddings con GitHub Models, recuperar fragmentos por similitud coseno y generar respuestas educativas en Streamlit mostrando las fuentes utilizadas.
+El sistema permite cargar PDFs locales, extraer texto, generar chunks trazables, guardar embeddings en MongoDB Atlas Vector Search, recuperar fragmentos relevantes y generar respuestas educativas en Streamlit mostrando las fuentes utilizadas.
 
 ## Alcance y restriccion financiera
 
@@ -29,26 +29,64 @@ Variables principales para GitHub Models:
 
 ```text
 GITHUB_TOKEN=
-GITHUB_MODELS_ENDPOINT=https://models.github.ai/inference/embeddings
-EMBEDDING_MODEL=openai/text-embedding-3-small
-GITHUB_CHAT_ENDPOINT=https://models.github.ai/inference/chat/completions
-CHAT_MODEL=openai/gpt-4o-mini
+GITHUB_EMBEDDING_MODEL=openai/text-embedding-3-small
+GITHUB_CHAT_MODEL=openai/gpt-4o-mini
+GITHUB_MODELS_EMBEDDINGS_ENDPOINT=https://models.github.ai/inference/embeddings
+GITHUB_MODELS_CHAT_ENDPOINT=https://models.github.ai/inference/chat/completions
 ```
 
-`GITHUB_TOKEN` es obligatorio para generar embeddings y respuestas con LLM. Los endpoints y modelos tienen valores por defecto en el codigo, pero pueden declararse en `.env` para dejar la configuracion explicita.
+`GITHUB_TOKEN` es obligatorio para generar embeddings y respuestas con LLM. Los modelos y endpoints tienen valores por defecto en el codigo, pero pueden declararse en `.env` para dejar la configuracion explicita.
 
-Variables documentales presentes en `.env.example`:
-
-```text
-PDF_FOLDER=data/raw
-DATA_RAW_DIR=data/raw
-DATA_PROCESSED_DIR=data/processed
-VECTORSTORE_DIR=data/vectorstore
-```
-
-Estas rutas documentan la estructura esperada del proyecto, pero la implementacion actual usa constantes de `src/config.py` para resolver `data/raw`, `data/processed` y `data/vectorstore`.
+Las rutas documentales se resuelven desde constantes de `src/config.py`: `data/raw`, `data/processed` y `data/vectorstore`.
 
 No subas `.env` al repositorio. El archivo contiene configuracion local y puede contener secretos.
+
+## Prueba segura de MongoDB Atlas
+
+MongoDB Atlas Vector Search es el vectorstore principal del pipeline RAG. Declara las variables MongoDB en `.env` sin subirlas al repositorio:
+
+```text
+MONGODB_CONNECTION_STRING=
+MONGODB_DATABASE=navirag
+MONGODB_COLLECTION=embeddings
+MONGODB_VECTOR_INDEX=vector_index
+```
+
+Para verificar solo presencia de variables, sin mostrar secretos:
+
+```bash
+python -m src.utils.mongodb --check-env
+```
+
+Para probar conectividad con `ping`, solo si las variables ya existen localmente:
+
+```bash
+python -m src.utils.mongodb --ping
+```
+
+Para solicitar la creacion del indice Atlas Vector Search configurado:
+
+```bash
+python -m src.utils.mongodb --create-vector-index
+```
+
+Comando equivalente estilo Clase 1.4:
+
+```bash
+python create_vector_index.py
+```
+
+Para contar documentos en la coleccion configurada:
+
+```bash
+python -m src.utils.mongodb --count
+```
+
+Para migrar embeddings historicos desde JSON local a MongoDB Atlas, sin regenerarlos:
+
+```bash
+python scripts/migrate_json_embeddings_to_mongodb.py
+```
 
 ## Flujo de procesamiento
 
@@ -56,7 +94,7 @@ No subas `.env` al repositorio. El archivo contiene configuracion local y puede 
 2. Ejecuta la ingesta:
 
 ```bash
-python -m src.ingest
+python -m src.ingesta.ingest
 ```
 
 La ingesta extrae texto por archivo y pagina y guarda `data/processed/documents.json`.
@@ -64,7 +102,7 @@ La ingesta extrae texto por archivo y pagina y guarda `data/processed/documents.
 3. Genera chunks trazables:
 
 ```bash
-python -m src.chunking
+python -m src.ingesta.chunking
 ```
 
 El chunking guarda `data/processed/chunks.json` con `chunk_id`, archivo, pagina e indice de chunk por pagina.
@@ -72,21 +110,27 @@ El chunking guarda `data/processed/chunks.json` con `chunk_id`, archivo, pagina 
 4. Genera embeddings con GitHub Models:
 
 ```bash
-python -m src.embeddings --limit 20
+python -m src.utils.embeddings --limit 20
 ```
 
 Para continuar una generacion interrumpida:
 
 ```bash
-python -m src.embeddings --resume --limit 50
+python -m src.utils.embeddings --resume --limit 50
 ```
 
-Los embeddings se guardan en `data/vectorstore/embeddings.json`.
+Los embeddings se guardan en MongoDB Atlas Vector Search como unico vectorstore operativo.
 
-5. Prueba retrieval local por similitud coseno:
+Si existen embeddings historicos en JSON local, puedes cargarlos a MongoDB Atlas con:
 
 ```bash
-python -m src.retrieval "que dice el material sobre gestion de riesgo" --top-k 3
+python scripts/migrate_json_embeddings_to_mongodb.py
+```
+
+5. Prueba retrieval con MongoDB Atlas Vector Search:
+
+```bash
+python -m src.retrieval.retrieval "que dice el material sobre gestion de riesgo" --top-k 3
 ```
 
 6. Ejecuta la interfaz Streamlit:
@@ -139,12 +183,13 @@ Evidencia local no versionada usada para auditoria de la entrega:
 
 ```text
 app.py             Interfaz Streamlit
-src/               Modulos de ingesta, chunking, embeddings, retrieval, prompts, generacion y safety
+prompts/           Plantillas de prompts
+src/               Modulos de ingesta, chunking, embeddings, retrieval, generacion y safety
 docs/              Arquitectura y decisiones tecnicas
 eval/              Preguntas y resultados de evaluacion
 data/raw/          PDFs locales ignorados por Git
 data/processed/    JSON procesados ignorados por Git
-data/vectorstore/  Embeddings locales ignorados por Git
+data/vectorstore/  Artefactos JSON historicos ignorados por Git
 ```
 
 ## Evaluacion

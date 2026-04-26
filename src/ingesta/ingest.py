@@ -6,6 +6,7 @@ or LLM answers.
 """
 
 import json
+import argparse
 from datetime import datetime, timezone
 from importlib.util import find_spec
 from pathlib import Path
@@ -90,6 +91,9 @@ def ingest_documents(
 
 def main() -> None:
     """Run ingestion from the command line."""
+    parser = argparse.ArgumentParser(description="Ingesta PDFs locales.")
+    parser.parse_args()
+
     documents = ingest_documents()
     print(f"Ingesta completada. Paginas procesadas: {len(documents)}")
     print(f"Salida: {PROCESSED_OUTPUT_FILE}")

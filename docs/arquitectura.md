@@ -6,44 +6,47 @@ NaviRag Trading es una demo RAG educativa para consultar PDFs locales de trading
 
 ```text
 PDFs locales en data/raw/
-  -> src/ingest.py
+  -> src/ingesta/ingest.py
   -> data/processed/documents.json
-  -> src/chunking.py
+  -> src/ingesta/chunking.py
   -> data/processed/chunks.json
-  -> src/embeddings.py
-  -> data/vectorstore/embeddings.json
+  -> src/utils/embeddings.py
+  -> MongoDB Atlas Vector Search
 ```
 
 ## Pipeline de consulta
 
 ```text
 pregunta del usuario
-  -> src/safety.py
+  -> src/utils/safety.py
   -> embedding de pregunta
-  -> src/retrieval.py
-  -> src/prompts.py
-  -> src/generator.py
+  -> src/retrieval/retrieval.py con MongoDB Atlas Vector Search
+  -> prompts/prompt.py
+  -> src/generate/generate.py
   -> app.py / Streamlit con respuesta y fuentes visibles
 ```
 
 ## Componentes
 
-- `src/ingest.py`: lee PDFs desde `data/raw/`, extrae texto por pagina y guarda metadatos basicos en `data/processed/documents.json`.
-- `src/chunking.py`: segmenta el texto extraido en chunks trazables por archivo, pagina, `chunk_id` e indice dentro de la pagina.
-- `src/embeddings.py`: genera embeddings para chunks usando GitHub Models y guarda registros locales en `data/vectorstore/embeddings.json`.
-- `src/retrieval.py`: carga embeddings locales, embebe la pregunta del usuario y ordena chunks por similitud coseno.
-- `src/prompts.py`: define el prompt educativo y las reglas para responder solo con contexto recuperado.
-- `src/generator.py`: construye el contexto trazable, llama al endpoint de chat compatible con OpenAI y devuelve una respuesta controlada.
-- `src/safety.py`: aplica un filtro simple por palabras clave para bloquear solicitudes obvias de asesoria financiera o senales operativas.
+- `src/ingesta/ingest.py`: lee PDFs desde `data/raw/`, extrae texto por pagina y guarda metadatos basicos en `data/processed/documents.json`.
+- `src/ingesta/chunking.py`: segmenta el texto extraido en chunks trazables por archivo, pagina, `chunk_id` e indice dentro de la pagina.
+- `src/utils/embeddings.py`: genera embeddings para chunks usando GitHub Models y los guarda en MongoDB Atlas.
+- `src/utils/mongodb.py`: centraliza configuracion, ping, upsert de embeddings e indice Atlas Vector Search.
+- `create_vector_index.py`: comando raiz para solicitar el indice vectorial de MongoDB Atlas.
+- `scripts/migrate_json_embeddings_to_mongodb.py`: migra embeddings historicos desde JSON local a MongoDB Atlas sin regenerarlos.
+- `src/retrieval/retrieval.py`: embebe la pregunta del usuario y consulta MongoDB Atlas Vector Search.
+- `prompts/prompt.py`: define el prompt educativo y las reglas para responder solo con contexto recuperado.
+- `src/generate/generate.py`: construye el contexto trazable, llama a GitHub Models y devuelve una respuesta controlada.
+- `src/utils/safety.py`: aplica un filtro simple por palabras clave para bloquear solicitudes obvias de asesoria financiera o senales operativas.
 - `app.py`: expone el flujo en Streamlit, muestra la respuesta educativa, fragmentos recuperados y limitaciones.
 
-## Persistencia local
+## Persistencia
 
-El repositorio usa archivos JSON locales para mantener la demo simple y auditable:
+El vectorstore operativo es MongoDB Atlas Vector Search. El repositorio puede conservar archivos JSON locales como evidencia historica ignorada por Git:
 
 - `data/processed/documents.json`: paginas extraidas.
 - `data/processed/chunks.json`: chunks trazables.
-- `data/vectorstore/embeddings.json`: embeddings y metadatos asociados.
+- `data/vectorstore/embeddings.json`: artefacto historico de embeddings y metadatos asociados.
 
 Estos archivos se generan localmente y no se versionan.
 
@@ -53,7 +56,7 @@ La aplicacion bloquea consultas que pidan recomendaciones financieras, compra, v
 
 ## Limitaciones
 
-- La persistencia es JSON local, adecuada para demo academica, no para produccion.
+- La persistencia vectorial principal depende de MongoDB Atlas.
 - El vectorstore actual es parcial y debe declararse como tal.
 - No hay cobertura completa garantizada del corpus.
 - No se integran datos de mercado en vivo.

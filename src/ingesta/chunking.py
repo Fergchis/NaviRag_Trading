@@ -1,5 +1,6 @@
 """Simple and traceable text chunking for NaviRag Trading."""
 
+import argparse
 import json
 import re
 from datetime import datetime, timezone
@@ -16,7 +17,7 @@ def load_processed_documents(input_file: Path = DOCUMENTS_FILE) -> list[dict]:
     """Load pages extracted by the ingestion step."""
     if not input_file.exists():
         raise FileNotFoundError(
-            f"No existe {input_file}. Ejecuta primero: python -m src.ingest"
+            f"No existe {input_file}. Ejecuta primero: python -m src.ingesta.ingest"
         )
 
     payload = json.loads(input_file.read_text(encoding="utf-8"))
@@ -109,6 +110,9 @@ def save_chunks(chunks: list[dict], output_file: Path = CHUNKS_OUTPUT_FILE) -> N
 
 def main() -> None:
     """Run chunking from the command line."""
+    parser = argparse.ArgumentParser(description="Genera chunks desde documentos locales.")
+    parser.parse_args()
+
     documents = load_processed_documents()
     chunks = chunk_documents(documents)
     save_chunks(chunks)
