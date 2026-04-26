@@ -1,89 +1,152 @@
 # NaviRag Trading
 
-Demo RAG educativa para **Iwakura Trading Academy** orientada a consultar PDFs de trading con trazabilidad documental.
+NaviRag Trading es una demo RAG educativa para **Iwakura Trading Academy** orientada a consultar PDFs de trading con trazabilidad documental.
 
-El proyecto implementa una canalizacion RAG simple: ingesta de PDFs, chunking trazable, embeddings con GitHub Models, retrieval local por similitud coseno y generacion educativa con LLM en Streamlit mostrando fuentes. No implementa senales de trading, recomendaciones financieras, asesoria de inversion, datos de mercado en vivo ni backtesting real.
+El sistema permite cargar PDFs locales, extraer texto, generar chunks trazables, crear embeddings con GitHub Models, recuperar fragmentos por similitud coseno y generar respuestas educativas en Streamlit mostrando las fuentes utilizadas.
 
-## Alcance actual
+## Alcance y restriccion financiera
 
-- Ingesta PDF desde `data/raw/`.
-- Chunking trazable por archivo, pagina y chunk.
-- Embeddings con GitHub Models.
-- Retrieval local por similitud coseno.
-- Generacion educativa con LLM basada solo en fragmentos recuperados.
-- Aplicacion Streamlit con respuesta y fuentes.
-- Documentacion tecnica minima.
-- Preguntas iniciales de evaluacion.
+NaviRag Trading no es un sistema de trading real. No entrega senales, recomendaciones financieras, asesoria de inversion, predicciones, entradas, salidas, stop loss, take profit, precios objetivo, mercado en vivo ni backtesting real.
 
-## Ejecucion local
+Las respuestas deben estar respaldadas por fragmentos recuperados desde los PDFs cargados. Si no existe contexto suficiente, la aplicacion debe indicarlo en vez de completar informacion con conocimiento externo.
+
+## Configuracion local
+
+Instala dependencias y crea el archivo de entorno local:
 
 ```bash
 pip install -r requirements.txt
-streamlit run app.py
+cp .env.example .env
 ```
 
-## Ingesta simple de PDFs
+En Windows PowerShell, el equivalente para copiar el archivo es:
 
-Coloca los PDFs educativos de trading en `data/raw/`. Esa carpeta es solo para el corpus documental de NaviRag Trading.
+```powershell
+Copy-Item .env.example .env
+```
 
-Luego ejecuta:
+Variables principales para GitHub Models:
+
+```text
+GITHUB_TOKEN=
+GITHUB_MODELS_ENDPOINT=https://models.github.ai/inference/embeddings
+EMBEDDING_MODEL=openai/text-embedding-3-small
+GITHUB_CHAT_ENDPOINT=https://models.github.ai/inference/chat/completions
+CHAT_MODEL=openai/gpt-4o-mini
+```
+
+`GITHUB_TOKEN` es obligatorio para generar embeddings y respuestas con LLM. Los endpoints y modelos tienen valores por defecto en el codigo, pero pueden declararse en `.env` para dejar la configuracion explicita.
+
+Variables documentales presentes en `.env.example`:
+
+```text
+PDF_FOLDER=data/raw
+DATA_RAW_DIR=data/raw
+DATA_PROCESSED_DIR=data/processed
+VECTORSTORE_DIR=data/vectorstore
+```
+
+Estas rutas documentan la estructura esperada del proyecto, pero la implementacion actual usa constantes de `src/config.py` para resolver `data/raw`, `data/processed` y `data/vectorstore`.
+
+No subas `.env` al repositorio. El archivo contiene configuracion local y puede contener secretos.
+
+## Flujo de procesamiento
+
+1. Coloca los PDFs educativos en `data/raw/`.
+2. Ejecuta la ingesta:
 
 ```bash
 python -m src.ingest
 ```
 
-La salida procesada se guarda en `data/processed/documents.json`. Esta fase extrae texto y metadatos basicos por archivo y pagina.
+La ingesta extrae texto por archivo y pagina y guarda `data/processed/documents.json`.
 
-Para generar chunks trazables desde el texto procesado:
+3. Genera chunks trazables:
 
 ```bash
 python -m src.chunking
 ```
 
-La salida se guarda en `data/processed/chunks.json`.
+El chunking guarda `data/processed/chunks.json` con `chunk_id`, archivo, pagina e indice de chunk por pagina.
 
-Para generar embeddings de prueba con GitHub Models:
+4. Genera embeddings con GitHub Models:
 
 ```bash
 python -m src.embeddings --limit 20
 ```
 
-Para continuar una generacion interrumpida sin reprocesar chunks existentes:
+Para continuar una generacion interrumpida:
 
 ```bash
 python -m src.embeddings --resume --limit 50
 ```
 
-La salida se guarda en `data/vectorstore/embeddings.json`. Esta fase usa `GITHUB_TOKEN`, `GITHUB_MODELS_ENDPOINT` y `EMBEDDING_MODEL` desde `.env`.
+Los embeddings se guardan en `data/vectorstore/embeddings.json`.
 
-Para probar retrieval local por similitud coseno:
+5. Prueba retrieval local por similitud coseno:
 
 ```bash
 python -m src.retrieval "que dice el material sobre gestion de riesgo" --top-k 3
 ```
 
-La app de Streamlit usa esos fragmentos recuperados para generar una respuesta educativa con LLM. Configura en `.env` `GITHUB_TOKEN`, `GITHUB_CHAT_ENDPOINT` y `CHAT_MODEL`; la respuesta debe basarse solo en los chunks mostrados como fuentes debajo de la respuesta.
-
-## Ejecucion con Docker
+6. Ejecuta la interfaz Streamlit:
 
 ```bash
-docker build -t navirag-trading .
-docker run -p 8501:8501 navirag-trading
+streamlit run app.py
 ```
 
 Luego abre `http://localhost:8501`.
 
+## Ejecucion con Docker
+
+Construye la imagen:
+
+```bash
+docker build -t navirag-trading .
+```
+
+Ejecuta la app usando el archivo `.env` y montando `data/` para que los PDFs, documentos procesados y vectorstore permanezcan fuera de la imagen:
+
+```bash
+docker run --env-file .env -p 8501:8501 -v "${PWD}/data:/app/data" navirag-trading
+```
+
+En PowerShell:
+
+```powershell
+docker run --env-file .env -p 8501:8501 -v "${PWD}\data:/app/data" navirag-trading
+```
+
+## Datos locales no versionados
+
+Los PDFs, chunks, embeddings, vectorstore y logs no se versionan. Permanecen como evidencia local privada y estan ignorados por `.gitignore`:
+
+- `data/raw/`
+- `data/processed/`
+- `data/vectorstore/`
+- `*.log`
+
+Evidencia local no versionada usada para auditoria de la entrega:
+
+- PDFs procesados: 3
+- Paginas extraidas: 583
+- Chunks generados: 1046
+- Embeddings generados: 200
+- Modelo de embeddings: `openai/text-embedding-3-small`
+- Vectorstore: parcial; no cubre todo el corpus
+
 ## Estructura
 
 ```text
-data/raw/          PDFs cargados manualmente
-data/processed/    documentos y chunks procesados
-data/vectorstore/  embeddings generados y vector store local
-src/               modulos de la aplicacion
-eval/              preguntas y resultados de evaluacion
-docs/              diseno, arquitectura y decisiones tecnicas
+app.py             Interfaz Streamlit
+src/               Modulos de ingesta, chunking, embeddings, retrieval, prompts, generacion y safety
+docs/              Arquitectura y decisiones tecnicas
+eval/              Preguntas y resultados de evaluacion
+data/raw/          PDFs locales ignorados por Git
+data/processed/    JSON procesados ignorados por Git
+data/vectorstore/  Embeddings locales ignorados por Git
 ```
 
-## Restricciones
+## Evaluacion
 
-NaviRag Trading tiene fines academicos. El sistema debe responder solo con informacion respaldada por documentos cargados y rechazar solicitudes de compra, venta, prediccion, entradas, salidas, stop loss, take profit o asesoria financiera personalizada.
+La evaluacion documenta el comportamiento esperado de una demo academica: respuestas educativas con fuentes, rechazo de solicitudes financieras operativas y manejo explicito de consultas sin contexto suficiente. Ver `eval/evaluation_results.md`.
