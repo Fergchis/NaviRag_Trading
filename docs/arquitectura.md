@@ -26,6 +26,18 @@ pregunta del usuario
   -> app.py / Streamlit con respuesta y fuentes visibles
 ```
 
+## Pipeline de evaluacion
+
+```text
+eval/dataset.json
+  -> eval/evaluate.py
+  -> retrieval/generacion del pipeline RAG
+  -> evaluacion RAGAS manual por metrica seleccionada
+  -> eval/evaluation_results.md
+```
+
+La evaluacion RAGAS es manual y complementaria. No se ejecuta dentro del runtime de Streamlit ni conserva un historico avanzado de corridas.
+
 ## Componentes
 
 - `src/ingesta/ingest.py`: lee PDFs desde `data/raw/`, extrae texto con `markitdown[pdf]` y guarda metadatos basicos en `data/processed/documents.json`. En este flujo MarkItDown entrega texto consolidado por documento, por lo que `page` queda en `None` y `section` queda como `document`.
@@ -39,6 +51,7 @@ pregunta del usuario
 - `src/generate/generate.py`: construye el contexto trazable, llama a GitHub Models y devuelve una respuesta controlada.
 - `src/utils/safety.py`: aplica un filtro simple por palabras clave para bloquear solicitudes obvias de asesoria financiera o senales operativas.
 - `app.py`: expone el flujo en Streamlit, muestra la respuesta educativa, fragmentos recuperados y limitaciones.
+- `eval/evaluate.py`: prepara evaluacion RAGAS con dataset academico, modo `--dry-run`, ejecucion controlada con `--limit`/`--metrics` y reporte Markdown sin inventar resultados.
 
 ## Persistencia
 
@@ -63,3 +76,4 @@ La aplicacion bloquea consultas que pidan recomendaciones financieras, compra, v
 - No se implementa backtesting real.
 - No hay conexion a brokers, exchanges ni ejecucion de ordenes.
 - La capa de safety es una regla simple por keywords, no una moderacion robusta.
+- La evaluacion RAGAS esta probada parcialmente; `answer_relevancy` puede agotar timeout con GitHub Models y la evaluacion completa de 8 preguntas queda pendiente.

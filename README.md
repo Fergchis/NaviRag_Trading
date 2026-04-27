@@ -197,10 +197,9 @@ Evidencia local no versionada usada para auditoria de la entrega:
 - PDFs procesados: 3
 - Documentos extraidos: 3
 - Chunks generados: 855
-- Embeddings generados: 200
+- Embeddings en MongoDB: 855
 - Modelo de embeddings: `openai/text-embedding-3-small`
-- Vectorstore: parcial; no cubre todo el corpus
-- MongoDB aun no fue reindexado con los 855 chunks generados por MarkItDown.
+- Vectorstore: MongoDB Atlas reindexado con los chunks MarkItDown actuales
 
 ## Estructura
 
@@ -218,3 +217,19 @@ data/vectorstore/  Artefactos JSON historicos ignorados por Git
 ## Evaluacion
 
 La evaluacion documenta el comportamiento esperado de una demo academica: respuestas educativas con fuentes, rechazo de solicitudes financieras operativas y manejo explicito de consultas sin contexto suficiente. Ver `eval/evaluation_results.md`.
+
+RAGAS queda preparado como evaluacion complementaria y manual, no como parte del runtime de Streamlit. El dataset esta en `eval/dataset.json` y el script en `eval/evaluate.py`.
+
+Validacion segura sin ejecutar retrieval, generacion ni RAGAS:
+
+```bash
+python eval/evaluate.py --dry-run
+```
+
+La ejecucion real de RAGAS se probo parcialmente con `--limit 1`. El resultado preservado actualmente es `context_precision=1.0` para `RAGAS-01`; no se afirma evaluacion completa de las 8 preguntas ni de todas las metricas. `answer_relevancy` presento timeouts con GitHub Models y queda como limitacion documentada.
+
+NaviRag usa GitHub Models; no se agrega `OPENAI_API_KEY` ni se cambia proveedor. Para una prueba controlada:
+
+```bash
+python eval/evaluate.py --prepare-rows --run-ragas --limit 1 --metrics context_precision --max-workers 1 --timeout 300
+```

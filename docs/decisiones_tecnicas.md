@@ -62,15 +62,37 @@ No se suben PDFs, `documents.json`, `chunks.json`, `embeddings.json`, vectorstor
 
 El repositorio versiona codigo, documentacion, configuracion de ejemplo y estructura minima con `.gitkeep`, no el corpus ni los artefactos derivados.
 
-## Vectorstore parcial
+## Evaluacion RAGAS
+
+RAGAS se incorpora como evaluacion complementaria y manual, alineada con Clase 1.4, usando un dataset pequeno en
+`eval/dataset.json` y un script separado `eval/evaluate.py`. Las metricas preparadas son `faithfulness`,
+`answer_relevancy`, `context_precision` y `context_recall`.
+
+La app y el retrieval no dependen de RAGAS para funcionar. El modo `--dry-run` valida dataset e imports sin llamar
+MongoDB, GitHub Models, retrieval, generacion ni scorers RAGAS, y no sobrescribe resultados preservados.
+
+La referencia de clase usa RAGAS con cliente OpenAI directo. NaviRag mantiene GitHub Models y usa el cliente
+`AsyncOpenAI` solo como capa compatible apuntando a `https://models.github.ai/inference`, con `GITHUB_TOKEN`.
+No se agrega `OPENAI_API_KEY` ni se cambia proveedor.
+
+La ejecucion real debe hacerse de forma explicita y acotada, por ejemplo:
+
+```bash
+python eval/evaluate.py --prepare-rows --run-ragas --limit 1 --metrics context_precision --max-workers 1 --timeout 300
+```
+
+El resultado preservado actualmente es una prueba parcial con `context_precision=1.0` para `RAGAS-01`. No se afirma
+evaluacion completa de las 8 preguntas ni de todas las metricas. `answer_relevancy` presento timeouts con GitHub
+Models y queda documentada como limitacion.
+
+## Vectorstore MongoDB
 
 La evidencia local indica:
 
 - PDFs procesados: 3
 - Documentos extraidos: 3
 - Chunks generados: 855
-- Embeddings generados: 200
+- Embeddings en MongoDB: 855
 - Modelo de embeddings: `openai/text-embedding-3-small`
-- MongoDB aun no fue reindexado con los 855 chunks generados por MarkItDown.
 
-El vectorstore es parcial. Esto es suficiente para una demo academica si se declara explicitamente y las pruebas se formulan como validacion del flujo implementado, no como cobertura completa del corpus.
+MongoDB Atlas fue reindexado con los chunks MarkItDown actuales. La cobertura depende del corpus local disponible y de que los artefactos no versionados se mantengan consistentes.
