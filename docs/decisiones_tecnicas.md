@@ -17,6 +17,10 @@ o chunking, se debe usar `python -m src.utils.embeddings --rebuild-mongodb` para
 y reindexar todos los chunks actuales desde cero. El flag no se puede combinar con `--limit` para evitar una
 coleccion reconstruida parcialmente.
 
+Si la reconstruccion se interrumpe por rate limit despues de insertar parte de los chunks, se debe continuar con
+`python -m src.utils.embeddings --resume-mongodb`. Ese modo consulta solo los `chunk_id` existentes en MongoDB,
+omite chunks ya insertados y genera embeddings solo para los pendientes, sin borrar la coleccion.
+
 ## Ingesta PDF con MarkItDown
 
 La ingesta usa `markitdown[pdf]` para convertir PDFs locales a texto sin OCR ni llamadas externas.

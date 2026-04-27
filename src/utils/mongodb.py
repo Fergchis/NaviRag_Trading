@@ -116,6 +116,18 @@ class MongoDBClient:
         """Return the number of documents in the configured collection."""
         return self.get_collection().count_documents({})
 
+    def get_existing_chunk_ids(self) -> set[str]:
+        """Return existing chunk IDs without loading embeddings."""
+        cursor = self.get_collection().find(
+            {"chunk_id": {"$exists": True}},
+            {"_id": 0, "chunk_id": 1},
+        )
+        return {
+            document["chunk_id"]
+            for document in cursor
+            if isinstance(document.get("chunk_id"), str)
+        }
+
     def delete_all_documents(self) -> int:
         """Delete all documents from the configured collection."""
         result = self.get_collection().delete_many({})

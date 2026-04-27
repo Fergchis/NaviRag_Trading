@@ -130,6 +130,17 @@ python -m src.utils.embeddings --rebuild-mongodb
 `--rebuild-mongodb` borra primero todos los documentos de la coleccion configurada y luego genera embeddings
 para todos los chunks. No lo combines con `--limit`.
 
+Si un rebuild se interrumpe por rate limit u otro error despues de insertar parte de los chunks, continua sin
+borrar MongoDB:
+
+```bash
+python -m src.utils.embeddings --resume-mongodb
+```
+
+`--resume-mongodb` lee los `chunk_id` ya presentes en MongoDB, omite esos chunks y genera embeddings solo para
+los pendientes. No vuelvas a usar `--rebuild-mongodb` salvo que quieras borrar la coleccion configurada y empezar
+desde cero.
+
 Los embeddings se guardan en MongoDB Atlas Vector Search como unico vectorstore operativo.
 
 Si existen embeddings historicos en JSON local, puedes cargarlos a MongoDB Atlas con:

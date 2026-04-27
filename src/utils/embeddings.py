@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import time
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,7 @@ CHUNKS_FILE = DATA_PROCESSED_DIR / "chunks.json"
 DEFAULT_GITHUB_EMBEDDING_MODEL = "openai/text-embedding-3-small"
 DEFAULT_GITHUB_EMBEDDINGS_ENDPOINT = "https://models.github.ai/inference/embeddings"
 BATCH_SIZE = 20
+RATE_LIMIT_RETRY_DELAYS = [30, 60, 120]
 
 
 class EmbeddingClient:
@@ -49,23 +51,44 @@ class EmbeddingClient:
 
     def get_embeddings(self, texts: list[str]) -> list[list[float]]:
         """Return embedding vectors for a batch of texts."""
-        response = requests.post(
-            self.endpoint,
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": self.model,
-                "input": texts,
-            },
-            timeout=60,
-        )
+        response = None
+        for attempt in range(len(RATE_LIMIT_RETRY_DELAYS) + 1):
+            response = requests.post(
+                self.endpoint,
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": self.model,
+                    "input": texts,
+                },
+                timeout=60,
+            )
 
-        if not response.ok:
+            if response.status_code != 429:
+                break
+
+            if attempt == len(RATE_LIMIT_RETRY_DELAYS):
+                raise RuntimeError(
+                    "Error en GitHub Models embeddings: HTTP 429 - rate limit "
+                    "persistente tras reintentos."
+                )
+
+            retry_after = response.headers.get("Retry-After")
+            if retry_after and retry_after.isdigit():
+                delay = int(retry_after)
+            else:
+                delay = RATE_LIMIT_RETRY_DELAYS[attempt]
+
+            print(f"Rate limit GitHub Models. Reintentando en {delay} segundos...")
+            time.sleep(delay)
+
+        if response is None or not response.ok:
+            status_code = response.status_code if response is not None else "sin respuesta"
+            message = response.text[:300] if response is not None else ""
             raise RuntimeError(
-                f"Error en GitHub Models embeddings: HTTP {response.status_code} - "
-                f"{response.text[:300]}"
+                f"Error en GitHub Models embeddings: HTTP {status_code} - {message}"
             )
 
         payload = response.json()
@@ -117,13 +140,12 @@ def save_embeddings_to_mongodb(records: list[dict]) -> int:
 
 def select_pending_chunks(
     chunks: list[dict],
-    existing_records: list[dict],
+    existing_chunk_ids: set[str],
     limit: int | None = None,
 ) -> list[dict]:
     """Select chunks that do not have embeddings yet."""
-    embedded_ids = {record.get("chunk_id") for record in existing_records}
     pending_chunks = [
-        chunk for chunk in chunks if chunk.get("chunk_id") not in embedded_ids
+        chunk for chunk in chunks if chunk.get("chunk_id") not in existing_chunk_ids
     ]
     if limit is not None:
         pending_chunks = pending_chunks[:limit]
@@ -133,8 +155,11 @@ def select_pending_chunks(
 def generate_embeddings(
     limit: int | None = None,
     rebuild_mongodb: bool = False,
+    resume_mongodb: bool = False,
 ) -> list[dict]:
     """Generate embeddings and store them in MongoDB Atlas."""
+    if rebuild_mongodb and resume_mongodb:
+        raise ValueError("No combines --rebuild-mongodb con --resume-mongodb.")
     if rebuild_mongodb and limit is not None:
         raise ValueError("No combines --rebuild-mongodb con --limit.")
 
@@ -145,7 +170,13 @@ def generate_embeddings(
     if rebuild_mongodb:
         deleted_count = mongo_client.delete_all_documents()
         print(f"Rebuild MongoDB: documentos eliminados antes de reindexar: {deleted_count}")
+        existing_chunk_ids = set()
+    elif resume_mongodb:
+        existing_chunk_ids = mongo_client.get_existing_chunk_ids()
+        print(f"Total chunks locales: {len(chunks)}")
+        print(f"Chunks existentes en MongoDB: {len(existing_chunk_ids)}")
     else:
+        existing_chunk_ids = set()
         print(
             "Advertencia: se hara upsert incremental sobre la coleccion MongoDB "
             "existente. Tras cambios de ingesta/chunking, usa --rebuild-mongodb "
@@ -155,9 +186,10 @@ def generate_embeddings(
     records = []
     pending_chunks = select_pending_chunks(
         chunks=chunks,
-        existing_records=records,
+        existing_chunk_ids=existing_chunk_ids,
         limit=limit,
     )
+    print(f"Chunks pendientes: {len(pending_chunks)}")
 
     for start in range(0, len(pending_chunks), BATCH_SIZE):
         batch = pending_chunks[start : start + BATCH_SIZE]
@@ -166,8 +198,11 @@ def generate_embeddings(
             embedder=embedder,
         )
         records.extend(new_records)
-        mongo_client.upsert_embedding_records(new_records)
-        print(f"Lote guardado. Total acumulado: {len(records)}")
+        written = mongo_client.upsert_embedding_records(new_records)
+        print(
+            f"Lote guardado. Registros upserted en lote: {written}. "
+            f"Total acumulado esta ejecucion: {len(records)}"
+        )
 
     return records
 
@@ -189,6 +224,14 @@ def parse_args() -> Any:
             "y regenera embeddings para todos los chunks locales. No combinar con --limit."
         ),
     )
+    parser.add_argument(
+        "--resume-mongodb",
+        action="store_true",
+        help=(
+            "Continua una reindexacion parcial: omite chunk_ids ya presentes "
+            "en MongoDB y genera embeddings solo para chunks pendientes."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -198,6 +241,7 @@ def main() -> None:
     records = generate_embeddings(
         limit=args.limit,
         rebuild_mongodb=args.rebuild_mongodb,
+        resume_mongodb=args.resume_mongodb,
     )
     print(f"Embeddings enviados a MongoDB: {len(records)}")
 
