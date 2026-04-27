@@ -97,7 +97,9 @@ python scripts/migrate_json_embeddings_to_mongodb.py
 python -m src.ingesta.ingest
 ```
 
-La ingesta extrae texto por archivo y pagina y guarda `data/processed/documents.json`.
+La ingesta extrae texto por archivo con `markitdown[pdf]` y guarda `data/processed/documents.json`.
+Como MarkItDown entrega texto consolidado por documento en este flujo, la trazabilidad conserva `file`,
+`path`, `section="document"` y `page=None` sin inventar numeros de pagina.
 
 3. Genera chunks trazables:
 
@@ -105,7 +107,10 @@ La ingesta extrae texto por archivo y pagina y guarda `data/processed/documents.
 python -m src.ingesta.chunking
 ```
 
-El chunking guarda `data/processed/chunks.json` con `chunk_id`, archivo, pagina e indice de chunk por pagina.
+El chunking guarda `data/processed/chunks.json` con `chunk_id`, archivo, pagina cuando exista,
+seccion e indice de chunk dentro del documento procesado. Si `page=None`, la aplicacion y el prompt muestran
+la seccion documental en vez de prometer una pagina. Para texto generado por MarkItDown, el chunking fusiona
+bloques pequenos y usa un rango aproximado de 500 a 1200 caracteres por chunk.
 
 4. Genera embeddings con GitHub Models:
 
@@ -113,11 +118,17 @@ El chunking guarda `data/processed/chunks.json` con `chunk_id`, archivo, pagina 
 python -m src.utils.embeddings --limit 20
 ```
 
-Para continuar una generacion interrumpida:
+Este comando hace upsert incremental sobre la coleccion MongoDB existente. Despues de cambiar la ingesta o
+el chunking, no mezcles embeddings antiguos con chunks nuevos: reindexa explicitamente desde cero.
+
+Para reconstruir MongoDB completo desde los chunks locales actuales:
 
 ```bash
-python -m src.utils.embeddings --resume --limit 50
+python -m src.utils.embeddings --rebuild-mongodb
 ```
+
+`--rebuild-mongodb` borra primero todos los documentos de la coleccion configurada y luego genera embeddings
+para todos los chunks. No lo combines con `--limit`.
 
 Los embeddings se guardan en MongoDB Atlas Vector Search como unico vectorstore operativo.
 
@@ -173,11 +184,12 @@ Los PDFs, chunks, embeddings, vectorstore y logs no se versionan. Permanecen com
 Evidencia local no versionada usada para auditoria de la entrega:
 
 - PDFs procesados: 3
-- Paginas extraidas: 583
-- Chunks generados: 1046
+- Documentos extraidos: 3
+- Chunks generados: 855
 - Embeddings generados: 200
 - Modelo de embeddings: `openai/text-embedding-3-small`
 - Vectorstore: parcial; no cubre todo el corpus
+- MongoDB aun no fue reindexado con los 855 chunks generados por MarkItDown.
 
 ## Estructura
 

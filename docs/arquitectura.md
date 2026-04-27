@@ -28,10 +28,10 @@ pregunta del usuario
 
 ## Componentes
 
-- `src/ingesta/ingest.py`: lee PDFs desde `data/raw/`, extrae texto por pagina y guarda metadatos basicos en `data/processed/documents.json`.
-- `src/ingesta/chunking.py`: segmenta el texto extraido en chunks trazables por archivo, pagina, `chunk_id` e indice dentro de la pagina.
-- `src/utils/embeddings.py`: genera embeddings para chunks usando GitHub Models y los guarda en MongoDB Atlas.
-- `src/utils/mongodb.py`: centraliza configuracion, ping, upsert de embeddings e indice Atlas Vector Search.
+- `src/ingesta/ingest.py`: lee PDFs desde `data/raw/`, extrae texto con `markitdown[pdf]` y guarda metadatos basicos en `data/processed/documents.json`. En este flujo MarkItDown entrega texto consolidado por documento, por lo que `page` queda en `None` y `section` queda como `document`.
+- `src/ingesta/chunking.py`: segmenta el texto extraido en chunks trazables por archivo, ruta, pagina cuando exista, seccion, `chunk_id` e indice dentro del documento procesado. Fusiona bloques pequenos de MarkItDown para evitar chunks demasiado fragmentados.
+- `src/utils/embeddings.py`: genera embeddings para chunks usando GitHub Models y conserva metadata trazable como archivo, pagina cuando exista, seccion e indice de chunk.
+- `src/utils/mongodb.py`: centraliza configuracion, ping, upsert de embeddings e indice Atlas Vector Search. Guarda `section` dentro de `metadata` para futuras regeneraciones sin cambiar el campo vectorial ni el identificador `chunk_id`.
 - `create_vector_index.py`: comando raiz para solicitar el indice vectorial de MongoDB Atlas.
 - `scripts/migrate_json_embeddings_to_mongodb.py`: migra embeddings historicos desde JSON local a MongoDB Atlas sin regenerarlos.
 - `src/retrieval/retrieval.py`: embebe la pregunta del usuario y consulta MongoDB Atlas Vector Search.
@@ -44,7 +44,7 @@ pregunta del usuario
 
 El vectorstore operativo es MongoDB Atlas Vector Search. El repositorio puede conservar archivos JSON locales como evidencia historica ignorada por Git:
 
-- `data/processed/documents.json`: paginas extraidas.
+- `data/processed/documents.json`: documentos extraidos con metadata trazable.
 - `data/processed/chunks.json`: chunks trazables.
 - `data/vectorstore/embeddings.json`: artefacto historico de embeddings y metadatos asociados.
 

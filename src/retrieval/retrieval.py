@@ -30,6 +30,7 @@ class Retriever:
                 "chunk_id": result.get("chunk_id"),
                 "file": (result.get("metadata") or {}).get("file"),
                 "page": (result.get("metadata") or {}).get("page"),
+                "section": (result.get("metadata") or {}).get("section"),
                 "page_chunk_index": (result.get("metadata") or {}).get(
                     "page_chunk_index"
                 ),
@@ -70,6 +71,7 @@ def main() -> None:
         print(f"chunk_id: {result['chunk_id']}")
         print(f"file: {result['file']}")
         print(f"page: {result['page']}")
+        print(f"section: {result['section']}")
         print(f"page_chunk_index: {result['page_chunk_index']}")
         print(f"text: {text}")
 

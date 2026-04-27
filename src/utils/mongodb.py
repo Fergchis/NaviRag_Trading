@@ -98,6 +98,7 @@ class MongoDBClient:
                 "metadata": {
                     "file": record.get("file"),
                     "page": record.get("page"),
+                    "section": record.get("section"),
                     "page_chunk_index": record.get("page_chunk_index"),
                     "character_count": record.get("character_count"),
                 },
@@ -114,6 +115,11 @@ class MongoDBClient:
     def count_documents(self) -> int:
         """Return the number of documents in the configured collection."""
         return self.get_collection().count_documents({})
+
+    def delete_all_documents(self) -> int:
+        """Delete all documents from the configured collection."""
+        result = self.get_collection().delete_many({})
+        return result.deleted_count
 
     def vector_search(
         self,

@@ -10,11 +10,13 @@ from src.config import DATA_PROCESSED_DIR
 
 DOCUMENTS_FILE = DATA_PROCESSED_DIR / "documents.json"
 CHUNKS_OUTPUT_FILE = DATA_PROCESSED_DIR / "chunks.json"
+MIN_CHUNK_CHARACTERS = 500
+TARGET_CHUNK_CHARACTERS = 900
 MAX_CHUNK_CHARACTERS = 1200
 
 
 def load_processed_documents(input_file: Path = DOCUMENTS_FILE) -> list[dict]:
-    """Load pages extracted by the ingestion step."""
+    """Load documents extracted by the ingestion step."""
     if not input_file.exists():
         raise FileNotFoundError(
             f"No existe {input_file}. Ejecuta primero: python -m src.ingesta.ingest"
@@ -25,7 +27,7 @@ def load_processed_documents(input_file: Path = DOCUMENTS_FILE) -> list[dict]:
 
 
 def split_text_blocks(text: str) -> list[str]:
-    """Split page text into readable blocks."""
+    """Split document text into readable blocks."""
     normalized = text.replace("\r\n", "\n").replace("\r", "\n").strip()
     if not normalized:
         return []
@@ -59,34 +61,93 @@ def split_long_block(block: str, max_characters: int = MAX_CHUNK_CHARACTERS) -> 
     return chunks
 
 
+def is_markdown_fence_only(text: str) -> bool:
+    """Return whether a block only opens or closes a Markdown code fence."""
+    clean_text = text.strip().lower()
+    return clean_text == "```" or clean_text == "```python"
+
+
+def merge_text_blocks(
+    blocks: list[str],
+    min_characters: int = MIN_CHUNK_CHARACTERS,
+    target_characters: int = TARGET_CHUNK_CHARACTERS,
+    max_characters: int = MAX_CHUNK_CHARACTERS,
+) -> list[str]:
+    """Merge small MarkItDown blocks into semantically larger chunks."""
+    chunks = []
+    current_blocks = []
+    current_length = 0
+
+    def flush_current() -> None:
+        nonlocal current_blocks, current_length
+        if not current_blocks:
+            return
+
+        chunk_text = "\n\n".join(current_blocks).strip()
+        if chunk_text and not is_markdown_fence_only(chunk_text):
+            chunks.append(chunk_text)
+
+        current_blocks = []
+        current_length = 0
+
+    for block in blocks:
+        for piece in split_long_block(block, max_characters=max_characters):
+            clean_piece = piece.strip()
+            if not clean_piece:
+                continue
+
+            if not current_blocks:
+                current_blocks = [clean_piece]
+                current_length = len(clean_piece)
+                continue
+
+            projected_length = current_length + 2 + len(clean_piece)
+            should_merge = projected_length <= target_characters or (
+                current_length < min_characters and projected_length <= max_characters
+            )
+
+            if should_merge:
+                current_blocks.append(clean_piece)
+                current_length = projected_length
+            else:
+                flush_current()
+                current_blocks = [clean_piece]
+                current_length = len(clean_piece)
+
+    flush_current()
+    return chunks
+
+
 def chunk_documents(documents: list[dict]) -> list[dict]:
-    """Create traceable chunks from page-level documents."""
+    """Create traceable chunks from ingested documents."""
     chunks = []
     global_chunk_index = 1
 
     for page in documents:
         text = page.get("text", "")
         page_blocks = split_text_blocks(text)
+        document_chunks = merge_text_blocks(page_blocks)
         page_chunk_index = 1
 
-        for block in page_blocks:
-            for chunk_text in split_long_block(block):
-                clean_text = chunk_text.strip()
-                if not clean_text:
-                    continue
+        for chunk_text in document_chunks:
+            clean_text = chunk_text.strip()
+            if not clean_text:
+                continue
 
-                chunks.append(
-                    {
-                        "chunk_id": f"chunk_{global_chunk_index:06d}",
-                        "file": page.get("file"),
-                        "page": page.get("page"),
-                        "page_chunk_index": page_chunk_index,
-                        "text": clean_text,
-                        "character_count": len(clean_text),
-                    }
-                )
-                global_chunk_index += 1
-                page_chunk_index += 1
+            chunks.append(
+                {
+                    "chunk_id": f"chunk_{global_chunk_index:06d}",
+                    "file": page.get("file"),
+                    "path": page.get("path"),
+                    "page": page.get("page"),
+                    "section": page.get("section"),
+                    "page_chunk_index": page_chunk_index,
+                    "text": clean_text,
+                    "character_count": len(clean_text),
+                }
+            )
+            global_chunk_index += 1
+            page_chunk_index += 1
 
     return chunks
 
@@ -96,7 +157,7 @@ def save_chunks(chunks: list[dict], output_file: Path = CHUNKS_OUTPUT_FILE) -> N
     output_file.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "system": "NaviRag Trading",
-        "description": "Chunks trazables generados desde paginas extraidas.",
+        "description": "Chunks trazables generados desde documentos extraidos.",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "source_file": str(DOCUMENTS_FILE),
         "total_chunks": len(chunks),

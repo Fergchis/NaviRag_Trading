@@ -98,6 +98,7 @@ def build_embedding_records_for_batch(
                 "chunk_id": chunk.get("chunk_id"),
                 "file": chunk.get("file"),
                 "page": chunk.get("page"),
+                "section": chunk.get("section"),
                 "page_chunk_index": chunk.get("page_chunk_index"),
                 "text": chunk.get("text"),
                 "character_count": chunk.get("character_count"),
@@ -131,11 +132,25 @@ def select_pending_chunks(
 
 def generate_embeddings(
     limit: int | None = None,
+    rebuild_mongodb: bool = False,
 ) -> list[dict]:
     """Generate embeddings and store them in MongoDB Atlas."""
+    if rebuild_mongodb and limit is not None:
+        raise ValueError("No combines --rebuild-mongodb con --limit.")
+
     chunks = load_chunks()
     embedder = EmbeddingClient()
     mongo_client = MongoDBClient()
+
+    if rebuild_mongodb:
+        deleted_count = mongo_client.delete_all_documents()
+        print(f"Rebuild MongoDB: documentos eliminados antes de reindexar: {deleted_count}")
+    else:
+        print(
+            "Advertencia: se hara upsert incremental sobre la coleccion MongoDB "
+            "existente. Tras cambios de ingesta/chunking, usa --rebuild-mongodb "
+            "para reindexar desde cero y evitar mezclar embeddings viejos y nuevos."
+        )
 
     records = []
     pending_chunks = select_pending_chunks(
@@ -166,13 +181,24 @@ def parse_args() -> Any:
         default=None,
         help="Cantidad maxima de chunks nuevos a procesar en esta ejecucion.",
     )
+    parser.add_argument(
+        "--rebuild-mongodb",
+        action="store_true",
+        help=(
+            "Borra primero todos los documentos de la coleccion MongoDB configurada "
+            "y regenera embeddings para todos los chunks locales. No combinar con --limit."
+        ),
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     """Run embeddings generation from the command line."""
     args = parse_args()
-    records = generate_embeddings(limit=args.limit)
+    records = generate_embeddings(
+        limit=args.limit,
+        rebuild_mongodb=args.rebuild_mongodb,
+    )
     print(f"Embeddings enviados a MongoDB: {len(records)}")
 
 

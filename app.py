@@ -8,6 +8,22 @@ from src.retrieval.retrieval import Retriever
 from src.utils.safety import is_forbidden_question
 
 
+def format_source_title(index: int, result: dict) -> str:
+    """Build a source title without inventing page numbers."""
+    if result.get("page") is not None:
+        location = f"pagina {result.get('page')}"
+    elif result.get("section"):
+        location = f"seccion {result.get('section')}"
+    else:
+        location = "pagina no disponible"
+
+    return (
+        f"{index}. {result.get('file')} | "
+        f"{location} | "
+        f"score {result.get('score', 0):.4f}"
+    )
+
+
 st.set_page_config(page_title=APP_NAME, layout="centered")
 
 st.title(APP_NAME)
@@ -79,14 +95,11 @@ if st.button("Consultar", type="primary"):
                 st.warning("No se recuperaron fragmentos para esta consulta.")
 
             for index, result in enumerate(results, start=1):
-                title = (
-                    f"{index}. {result.get('file')} | "
-                    f"pagina {result.get('page')} | "
-                    f"score {result.get('score', 0):.4f}"
-                )
+                title = format_source_title(index, result)
                 with st.expander(title, expanded=index == 1):
                     st.caption(
                         f"chunk_id: {result.get('chunk_id')} | "
+                        f"section: {result.get('section')} | "
                         f"page_chunk_index: {result.get('page_chunk_index')}"
                     )
                     st.write(result.get("text", ""))

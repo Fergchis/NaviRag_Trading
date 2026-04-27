@@ -6,11 +6,27 @@ Se usa Streamlit porque permite ejecutar una demo academica local con baja fricc
 
 ## MongoDB Atlas Vector Search
 
-MongoDB Atlas Vector Search se usa como vectorstore principal para acercar la arquitectura a los ejemplos de Clase 1.4. La base configurada por defecto es `navirag` y cada documento conserva `chunk_id`, texto, embedding, modelo y metadatos trazables como archivo, pagina e indice de chunk.
+MongoDB Atlas Vector Search se usa como vectorstore principal para acercar la arquitectura a los ejemplos de Clase 1.4. La base configurada por defecto es `navirag` y cada documento conserva `chunk_id`, texto, embedding, modelo y metadatos trazables como archivo, pagina cuando exista, seccion e indice de chunk.
 
 El JSON local en `data/vectorstore/embeddings.json` puede mantenerse como artefacto historico ignorado por Git, pero no forma parte del runtime de retrieval.
 
 La limitacion es clara: Atlas requiere configuracion externa, variables locales y un indice vectorial creado en la coleccion.
+
+La generacion normal de embeddings hace upsert incremental sobre la coleccion existente. Cuando cambian ingesta
+o chunking, se debe usar `python -m src.utils.embeddings --rebuild-mongodb` para borrar la coleccion configurada
+y reindexar todos los chunks actuales desde cero. El flag no se puede combinar con `--limit` para evitar una
+coleccion reconstruida parcialmente.
+
+## Ingesta PDF con MarkItDown
+
+La ingesta usa `markitdown[pdf]` para convertir PDFs locales a texto sin OCR ni llamadas externas.
+La API usada devuelve texto consolidado por documento, no paginas separadas. Para mantener trazabilidad honesta,
+los registros de ingesta conservan archivo, ruta, `section="document"` y `page=None` en vez de inventar numeros
+de pagina. Esa metadata se propaga a chunks, futuros records de embeddings, MongoDB y presentacion de fuentes.
+
+El texto MarkItDown puede incluir dobles saltos de linea muy frecuentes. Por eso el chunking no trata cada bloque
+como chunk final: fusiona bloques pequenos hasta un objetivo cercano a 900 caracteres, con minimo operativo de
+500 y maximo de 1200 caracteres.
 
 ## Similitud coseno
 
@@ -47,9 +63,10 @@ El repositorio versiona codigo, documentacion, configuracion de ejemplo y estruc
 La evidencia local indica:
 
 - PDFs procesados: 3
-- Paginas extraidas: 583
-- Chunks generados: 1046
+- Documentos extraidos: 3
+- Chunks generados: 855
 - Embeddings generados: 200
 - Modelo de embeddings: `openai/text-embedding-3-small`
+- MongoDB aun no fue reindexado con los 855 chunks generados por MarkItDown.
 
 El vectorstore es parcial. Esto es suficiente para una demo academica si se declara explicitamente y las pruebas se formulan como validacion del flujo implementado, no como cobertura completa del corpus.

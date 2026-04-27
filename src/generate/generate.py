@@ -6,6 +6,15 @@ from src.utils.llm import GitHubModelsLLM
 MAX_CONTEXT_CHARS = 8000
 
 
+def format_source_location(chunk: dict) -> str:
+    """Return source location without inventing page numbers."""
+    if chunk.get("page") is not None:
+        return f"pagina={chunk.get('page')}"
+    if chunk.get("section"):
+        return f"seccion={chunk.get('section')}"
+    return "pagina=no disponible"
+
+
 class RAGGenerator:
     """Generate controlled educational answers from retrieved chunks."""
 
@@ -29,7 +38,8 @@ class RAGGenerator:
 
             source = (
                 f"Fuente {index}: archivo={chunk.get('file')}, "
-                f"pagina={chunk.get('page')}, chunk_id={chunk.get('chunk_id')}"
+                f"{format_source_location(chunk)}, "
+                f"chunk_id={chunk.get('chunk_id')}"
             )
             available_text_chars = remaining_chars - len(source) - 2
             if available_text_chars <= 0:
