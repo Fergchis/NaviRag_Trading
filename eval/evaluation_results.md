@@ -11,9 +11,11 @@ RAGAS queda integrado como evaluacion complementaria y manual, alineada con el e
 
 No forma parte del runtime de Streamlit y no reemplaza la validacion funcional de la demo.
 
+El script actual vuelve al estilo simple de Clase 1.4: sin CLI, sin reportes avanzados y con `run_evaluation(limit=1)` por defecto.
+
 ## Resultado preservado
 
-La evidencia actualmente preservada corresponde a una prueba real controlada con `--limit 1` sobre `RAGAS-01`.
+La evidencia actualmente preservada corresponde a una prueba real controlada de una pregunta sobre `RAGAS-01`.
 
 | metrica | estado | resultado |
 | --- | --- | --- |
@@ -38,16 +40,10 @@ Los resultados anteriores de `context_recall` y `faithfulness` no se reconstruye
 
 ## Ejecucion recomendada
 
-Validacion sin llamadas externas:
+Prueba real controlada por defecto:
 
 ```bash
-python eval/evaluate.py --dry-run
-```
-
-Prueba real controlada:
-
-```bash
-python eval/evaluate.py --prepare-rows --run-ragas --limit 1 --metrics context_precision --max-workers 1 --timeout 300
+python eval/evaluate.py
 ```
 
 No se debe interpretar este resultado parcial como una evaluacion completa de todas las metricas ni de todo el dataset.

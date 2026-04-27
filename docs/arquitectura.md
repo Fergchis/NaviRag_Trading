@@ -32,8 +32,8 @@ pregunta del usuario
 eval/dataset.json
   -> eval/evaluate.py
   -> retrieval/generacion del pipeline RAG
-  -> evaluacion RAGAS manual por metrica seleccionada
-  -> eval/evaluation_results.md
+  -> evaluacion RAGAS manual
+  -> impresion de resultados y resumen
 ```
 
 La evaluacion RAGAS es manual y complementaria. No se ejecuta dentro del runtime de Streamlit ni conserva un historico avanzado de corridas.
@@ -51,7 +51,7 @@ La evaluacion RAGAS es manual y complementaria. No se ejecuta dentro del runtime
 - `src/generate/generate.py`: construye el contexto trazable, llama a GitHub Models y devuelve una respuesta controlada.
 - `src/utils/safety.py`: aplica un filtro simple por palabras clave para bloquear solicitudes obvias de asesoria financiera o senales operativas.
 - `app.py`: expone el flujo en Streamlit, muestra la respuesta educativa, fragmentos recuperados y limitaciones.
-- `eval/evaluate.py`: prepara evaluacion RAGAS con dataset academico, modo `--dry-run`, ejecucion controlada con `--limit`/`--metrics` y reporte Markdown sin inventar resultados.
+- `eval/evaluate.py`: ejecuta una evaluacion RAGAS simple con dataset academico, limitada por defecto a una pregunta para no correr las 8 preguntas completas.
 
 ## Persistencia
 

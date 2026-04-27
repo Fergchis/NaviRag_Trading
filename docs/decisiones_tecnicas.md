@@ -68,17 +68,18 @@ RAGAS se incorpora como evaluacion complementaria y manual, alineada con Clase 1
 `eval/dataset.json` y un script separado `eval/evaluate.py`. Las metricas preparadas son `faithfulness`,
 `answer_relevancy`, `context_precision` y `context_recall`.
 
-La app y el retrieval no dependen de RAGAS para funcionar. El modo `--dry-run` valida dataset e imports sin llamar
-MongoDB, GitHub Models, retrieval, generacion ni scorers RAGAS, y no sobrescribe resultados preservados.
+La app y el retrieval no dependen de RAGAS para funcionar. El script sigue el estilo simple de Clase 1.4:
+carga el dataset, crea el retriever y generador, configura GitHub Models para RAGAS, recorre preguntas, imprime scores
+y muestra un resumen. Por defecto se llama como `run_evaluation(limit=1)`.
 
 La referencia de clase usa RAGAS con cliente OpenAI directo. NaviRag mantiene GitHub Models y usa el cliente
 `AsyncOpenAI` solo como capa compatible apuntando a `https://models.github.ai/inference`, con `GITHUB_TOKEN`.
 No se agrega `OPENAI_API_KEY` ni se cambia proveedor.
 
-La ejecucion real debe hacerse de forma explicita y acotada, por ejemplo:
+La ejecucion acotada queda como el comportamiento por defecto:
 
 ```bash
-python eval/evaluate.py --prepare-rows --run-ragas --limit 1 --metrics context_precision --max-workers 1 --timeout 300
+python eval/evaluate.py
 ```
 
 El resultado preservado actualmente es una prueba parcial con `context_precision=1.0` para `RAGAS-01`. No se afirma

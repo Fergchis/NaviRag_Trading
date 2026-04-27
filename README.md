@@ -220,16 +220,12 @@ La evaluacion documenta el comportamiento esperado de una demo academica: respue
 
 RAGAS queda preparado como evaluacion complementaria y manual, no como parte del runtime de Streamlit. El dataset esta en `eval/dataset.json` y el script en `eval/evaluate.py`.
 
-Validacion segura sin ejecutar retrieval, generacion ni RAGAS:
+Por defecto el script ejecuta solo una pregunta para evitar correr el dataset completo:
 
 ```bash
-python eval/evaluate.py --dry-run
+python eval/evaluate.py
 ```
 
-La ejecucion real de RAGAS se probo parcialmente con `--limit 1`. El resultado preservado actualmente es `context_precision=1.0` para `RAGAS-01`; no se afirma evaluacion completa de las 8 preguntas ni de todas las metricas. `answer_relevancy` presento timeouts con GitHub Models y queda como limitacion documentada.
+La ejecucion real de RAGAS se probo parcialmente con una pregunta. El resultado preservado actualmente es `context_precision=1.0` para `RAGAS-01`; no se afirma evaluacion completa de las 8 preguntas ni de todas las metricas. `answer_relevancy` presento timeouts con GitHub Models y queda como limitacion documentada.
 
-NaviRag usa GitHub Models; no se agrega `OPENAI_API_KEY` ni se cambia proveedor. Para una prueba controlada:
-
-```bash
-python eval/evaluate.py --prepare-rows --run-ragas --limit 1 --metrics context_precision --max-workers 1 --timeout 300
-```
+NaviRag usa GitHub Models; no se agrega `OPENAI_API_KEY` ni se cambia proveedor.
