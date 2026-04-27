@@ -6,10 +6,10 @@ or LLM answers.
 """
 
 import json
+import argparse
 from datetime import datetime, timezone
 from importlib.util import find_spec
 from pathlib import Path
-from typing import Any
 
 from src.config import DATA_PROCESSED_DIR, DATA_RAW_DIR
 
@@ -21,39 +21,35 @@ def list_pdf_files(raw_dir: Path) -> list[Path]:
     return sorted(raw_dir.glob("*.pdf"))
 
 
-def _require_pypdf() -> Any:
-    """Import pypdf only when ingestion is executed."""
-    if find_spec("pypdf") is None:
+def _require_markitdown():
+    """Import MarkItDown only when ingestion is executed."""
+    if find_spec("markitdown") is None:
         raise RuntimeError(
-            "Falta la dependencia 'pypdf'. Instala dependencias con "
+            "Falta la dependencia 'markitdown[pdf]'. Instala dependencias con "
             "'pip install -r requirements.txt'."
         )
 
-    from pypdf import PdfReader
+    from markitdown import MarkItDown
 
-    return PdfReader
+    return MarkItDown
 
 
 def extract_pdf_pages(pdf_path: Path) -> list[dict]:
-    """Extract page text and metadata from one PDF file."""
-    PdfReader = _require_pypdf()
-    reader = PdfReader(str(pdf_path))
-    pages = []
+    """Extract document text and metadata from one PDF file."""
+    MarkItDown = _require_markitdown()
+    result = MarkItDown().convert(str(pdf_path))
+    clean_text = (result.text_content or "").strip()
 
-    for page_index, page in enumerate(reader.pages, start=1):
-        text = page.extract_text() or ""
-        clean_text = text.strip()
-        pages.append(
-            {
-                "file": pdf_path.name,
-                "path": str(pdf_path),
-                "page": page_index,
-                "text": clean_text,
-                "character_count": len(clean_text),
-            }
-        )
-
-    return pages
+    return [
+        {
+            "file": pdf_path.name,
+            "path": str(pdf_path),
+            "page": None,
+            "section": "document",
+            "text": clean_text,
+            "character_count": len(clean_text),
+        }
+    ]
 
 
 def ingest_documents(
@@ -76,7 +72,7 @@ def ingest_documents(
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "source_dir": str(raw_dir),
         "total_pdf_files": len(pdf_files),
-        "total_pages": len(documents),
+        "total_documents": len(documents),
         "documents": documents,
     }
 
@@ -90,8 +86,11 @@ def ingest_documents(
 
 def main() -> None:
     """Run ingestion from the command line."""
+    parser = argparse.ArgumentParser(description="Ingesta PDFs locales.")
+    parser.parse_args()
+
     documents = ingest_documents()
-    print(f"Ingesta completada. Paginas procesadas: {len(documents)}")
+    print(f"Ingesta completada. Documentos procesados: {len(documents)}")
     print(f"Salida: {PROCESSED_OUTPUT_FILE}")
 
 

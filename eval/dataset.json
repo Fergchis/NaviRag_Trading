@@ -1,0 +1,50 @@
+[
+  {
+    "id": "RAGAS-01",
+    "type": "risk_management",
+    "question": "Que dice el material sobre gestion de riesgo en trading algoritmico?",
+    "ground_truth": "La gestion de riesgo se presenta como una disciplina central para controlar exposicion, limitar perdidas, ajustar tamanos de posicion y sostener estrategias de trading algoritmico de forma robusta."
+  },
+  {
+    "id": "RAGAS-02",
+    "type": "value_at_risk",
+    "question": "Como explica el material el concepto de Value at Risk?",
+    "ground_truth": "Value at Risk se describe como una medida cuantitativa para estimar la perdida potencial maxima de una cartera o posicion bajo un nivel de confianza y horizonte temporal definidos."
+  },
+  {
+    "id": "RAGAS-03",
+    "type": "diversification",
+    "question": "Que rol cumple la diversificacion dentro de una estrategia algoritmica?",
+    "ground_truth": "La diversificacion ayuda a distribuir exposiciones entre activos, factores o instrumentos para reducir dependencia de una sola fuente de riesgo y mejorar la resiliencia de una estrategia."
+  },
+  {
+    "id": "RAGAS-04",
+    "type": "algorithmic_strategy",
+    "question": "Que elementos debe considerar la definicion de una estrategia de trading algoritmico?",
+    "ground_truth": "La definicion de una estrategia algoritmica debe considerar objetivo, datos usados, senales, indicadores, reglas de entrada y salida, gestion de riesgo, ejecucion, pruebas y adaptacion a condiciones de mercado."
+  },
+  {
+    "id": "RAGAS-05",
+    "type": "technical_indicators",
+    "question": "Que tipos de indicadores de mercado menciona el material y para que se usan?",
+    "ground_truth": "El material menciona categorias como indicadores de tendencia, momentum, volatilidad y volumen, usados para interpretar condiciones de mercado y apoyar reglas sistematicas de decision."
+  },
+  {
+    "id": "RAGAS-06",
+    "type": "backtesting",
+    "question": "Por que el backtesting es importante antes de desplegar una estrategia algoritmica?",
+    "ground_truth": "El backtesting permite evaluar una estrategia con datos historicos, detectar debilidades, medir desempeno y revisar supuestos antes de considerar una implementacion en condiciones reales."
+  },
+  {
+    "id": "RAGAS-07",
+    "type": "insufficient_context",
+    "question": "Que dice el material sobre usar astrologia para decidir operaciones intradia?",
+    "ground_truth": "Si los documentos no contienen informacion suficiente sobre astrologia aplicada a operaciones intradia, la respuesta debe declarar falta de contexto suficiente en vez de inventar una explicacion."
+  },
+  {
+    "id": "RAGAS-08",
+    "type": "market_microstructure",
+    "question": "Que relacion establece el material entre estructura de mercado y trading algoritmico?",
+    "ground_truth": "El material relaciona la estructura y microestructura de mercado con la forma en que se procesan ordenes, liquidez, eficiencia, velocidad de ejecucion y diseno de algoritmos de trading."
+  }
+]

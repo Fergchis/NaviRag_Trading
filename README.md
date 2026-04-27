@@ -2,7 +2,7 @@
 
 NaviRag Trading es una demo RAG educativa para **Iwakura Trading Academy** orientada a consultar PDFs de trading con trazabilidad documental.
 
-El sistema permite cargar PDFs locales, extraer texto, generar chunks trazables, crear embeddings con GitHub Models, recuperar fragmentos por similitud coseno y generar respuestas educativas en Streamlit mostrando las fuentes utilizadas.
+El sistema permite cargar PDFs locales, extraer texto, generar chunks trazables, guardar embeddings en MongoDB Atlas Vector Search, recuperar fragmentos relevantes y generar respuestas educativas en Streamlit mostrando las fuentes utilizadas.
 
 ## Alcance y restriccion financiera
 
@@ -29,26 +29,64 @@ Variables principales para GitHub Models:
 
 ```text
 GITHUB_TOKEN=
-GITHUB_MODELS_ENDPOINT=https://models.github.ai/inference/embeddings
-EMBEDDING_MODEL=openai/text-embedding-3-small
-GITHUB_CHAT_ENDPOINT=https://models.github.ai/inference/chat/completions
-CHAT_MODEL=openai/gpt-4o-mini
+GITHUB_EMBEDDING_MODEL=openai/text-embedding-3-small
+GITHUB_CHAT_MODEL=openai/gpt-4o-mini
+GITHUB_MODELS_EMBEDDINGS_ENDPOINT=https://models.github.ai/inference/embeddings
+GITHUB_MODELS_CHAT_ENDPOINT=https://models.github.ai/inference/chat/completions
 ```
 
-`GITHUB_TOKEN` es obligatorio para generar embeddings y respuestas con LLM. Los endpoints y modelos tienen valores por defecto en el codigo, pero pueden declararse en `.env` para dejar la configuracion explicita.
+`GITHUB_TOKEN` es obligatorio para generar embeddings y respuestas con LLM. Los modelos y endpoints tienen valores por defecto en el codigo, pero pueden declararse en `.env` para dejar la configuracion explicita.
 
-Variables documentales presentes en `.env.example`:
-
-```text
-PDF_FOLDER=data/raw
-DATA_RAW_DIR=data/raw
-DATA_PROCESSED_DIR=data/processed
-VECTORSTORE_DIR=data/vectorstore
-```
-
-Estas rutas documentan la estructura esperada del proyecto, pero la implementacion actual usa constantes de `src/config.py` para resolver `data/raw`, `data/processed` y `data/vectorstore`.
+Las rutas documentales se resuelven desde constantes de `src/config.py`: `data/raw`, `data/processed` y `data/vectorstore`.
 
 No subas `.env` al repositorio. El archivo contiene configuracion local y puede contener secretos.
+
+## Prueba segura de MongoDB Atlas
+
+MongoDB Atlas Vector Search es el vectorstore principal del pipeline RAG. Declara las variables MongoDB en `.env` sin subirlas al repositorio:
+
+```text
+MONGODB_CONNECTION_STRING=
+MONGODB_DATABASE=navirag
+MONGODB_COLLECTION=embeddings
+MONGODB_VECTOR_INDEX=vector_index
+```
+
+Para verificar solo presencia de variables, sin mostrar secretos:
+
+```bash
+python -m src.utils.mongodb --check-env
+```
+
+Para probar conectividad con `ping`, solo si las variables ya existen localmente:
+
+```bash
+python -m src.utils.mongodb --ping
+```
+
+Para solicitar la creacion del indice Atlas Vector Search configurado:
+
+```bash
+python -m src.utils.mongodb --create-vector-index
+```
+
+Comando equivalente estilo Clase 1.4:
+
+```bash
+python create_vector_index.py
+```
+
+Para contar documentos en la coleccion configurada:
+
+```bash
+python -m src.utils.mongodb --count
+```
+
+Para migrar embeddings historicos desde JSON local a MongoDB Atlas, sin regenerarlos:
+
+```bash
+python scripts/migrate_json_embeddings_to_mongodb.py
+```
 
 ## Flujo de procesamiento
 
@@ -56,37 +94,65 @@ No subas `.env` al repositorio. El archivo contiene configuracion local y puede 
 2. Ejecuta la ingesta:
 
 ```bash
-python -m src.ingest
+python -m src.ingesta.ingest
 ```
 
-La ingesta extrae texto por archivo y pagina y guarda `data/processed/documents.json`.
+La ingesta extrae texto por archivo con `markitdown[pdf]` y guarda `data/processed/documents.json`.
+Como MarkItDown entrega texto consolidado por documento en este flujo, la trazabilidad conserva `file`,
+`path`, `section="document"` y `page=None` sin inventar numeros de pagina.
 
 3. Genera chunks trazables:
 
 ```bash
-python -m src.chunking
+python -m src.ingesta.chunking
 ```
 
-El chunking guarda `data/processed/chunks.json` con `chunk_id`, archivo, pagina e indice de chunk por pagina.
+El chunking guarda `data/processed/chunks.json` con `chunk_id`, archivo, pagina cuando exista,
+seccion e indice de chunk dentro del documento procesado. Si `page=None`, la aplicacion y el prompt muestran
+la seccion documental en vez de prometer una pagina. Para texto generado por MarkItDown, el chunking fusiona
+bloques pequenos y usa un rango aproximado de 500 a 1200 caracteres por chunk.
 
 4. Genera embeddings con GitHub Models:
 
 ```bash
-python -m src.embeddings --limit 20
+python -m src.utils.embeddings --limit 20
 ```
 
-Para continuar una generacion interrumpida:
+Este comando hace upsert incremental sobre la coleccion MongoDB existente. Despues de cambiar la ingesta o
+el chunking, no mezcles embeddings antiguos con chunks nuevos: reindexa explicitamente desde cero.
+
+Para reconstruir MongoDB completo desde los chunks locales actuales:
 
 ```bash
-python -m src.embeddings --resume --limit 50
+python -m src.utils.embeddings --rebuild-mongodb
 ```
 
-Los embeddings se guardan en `data/vectorstore/embeddings.json`.
+`--rebuild-mongodb` borra primero todos los documentos de la coleccion configurada y luego genera embeddings
+para todos los chunks. No lo combines con `--limit`.
 
-5. Prueba retrieval local por similitud coseno:
+Si un rebuild se interrumpe por rate limit u otro error despues de insertar parte de los chunks, continua sin
+borrar MongoDB:
 
 ```bash
-python -m src.retrieval "que dice el material sobre gestion de riesgo" --top-k 3
+python -m src.utils.embeddings --resume-mongodb
+```
+
+`--resume-mongodb` lee los `chunk_id` ya presentes en MongoDB, omite esos chunks y genera embeddings solo para
+los pendientes. No vuelvas a usar `--rebuild-mongodb` salvo que quieras borrar la coleccion configurada y empezar
+desde cero.
+
+Los embeddings se guardan en MongoDB Atlas Vector Search como unico vectorstore operativo.
+
+Si existen embeddings historicos en JSON local, puedes cargarlos a MongoDB Atlas con:
+
+```bash
+python scripts/migrate_json_embeddings_to_mongodb.py
+```
+
+5. Prueba retrieval con MongoDB Atlas Vector Search:
+
+```bash
+python -m src.retrieval.retrieval "que dice el material sobre gestion de riesgo" --top-k 3
 ```
 
 6. Ejecuta la interfaz Streamlit:
@@ -129,24 +195,41 @@ Los PDFs, chunks, embeddings, vectorstore y logs no se versionan. Permanecen com
 Evidencia local no versionada usada para auditoria de la entrega:
 
 - PDFs procesados: 3
-- Paginas extraidas: 583
-- Chunks generados: 1046
-- Embeddings generados: 200
+- Documentos extraidos: 3
+- Chunks generados: 855
+- Embeddings en MongoDB: 855
 - Modelo de embeddings: `openai/text-embedding-3-small`
-- Vectorstore: parcial; no cubre todo el corpus
+- Vectorstore: MongoDB Atlas reindexado con los chunks MarkItDown actuales
 
 ## Estructura
 
 ```text
 app.py             Interfaz Streamlit
-src/               Modulos de ingesta, chunking, embeddings, retrieval, prompts, generacion y safety
+prompts/           Plantillas de prompts
+src/               Modulos de ingesta, chunking, embeddings, retrieval, generacion y safety
 docs/              Arquitectura y decisiones tecnicas
 eval/              Preguntas y resultados de evaluacion
 data/raw/          PDFs locales ignorados por Git
 data/processed/    JSON procesados ignorados por Git
-data/vectorstore/  Embeddings locales ignorados por Git
+data/vectorstore/  Artefactos JSON historicos ignorados por Git
 ```
 
 ## Evaluacion
 
 La evaluacion documenta el comportamiento esperado de una demo academica: respuestas educativas con fuentes, rechazo de solicitudes financieras operativas y manejo explicito de consultas sin contexto suficiente. Ver `eval/evaluation_results.md`.
+
+RAGAS queda preparado como evaluacion complementaria y manual, no como parte del runtime de Streamlit. El dataset esta en `eval/dataset.json` y el script en `eval/evaluate.py`.
+
+Validacion segura sin ejecutar retrieval, generacion ni RAGAS:
+
+```bash
+python eval/evaluate.py --dry-run
+```
+
+La ejecucion real de RAGAS se probo parcialmente con `--limit 1`. El resultado preservado actualmente es `context_precision=1.0` para `RAGAS-01`; no se afirma evaluacion completa de las 8 preguntas ni de todas las metricas. `answer_relevancy` presento timeouts con GitHub Models y queda como limitacion documentada.
+
+NaviRag usa GitHub Models; no se agrega `OPENAI_API_KEY` ni se cambia proveedor. Para una prueba controlada:
+
+```bash
+python eval/evaluate.py --prepare-rows --run-ragas --limit 1 --metrics context_precision --max-workers 1 --timeout 300
+```

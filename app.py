@@ -3,9 +3,25 @@
 import streamlit as st
 
 from src.config import APP_NAME, ORGANIZATION
-from src.generator import generate_answer
-from src.retrieval import retrieve
-from src.safety import is_forbidden_question
+from src.generate.generate import RAGGenerator
+from src.retrieval.retrieval import Retriever
+from src.utils.safety import is_forbidden_question
+
+
+def format_source_title(index: int, result: dict) -> str:
+    """Build a source title without inventing page numbers."""
+    if result.get("page") is not None:
+        location = f"pagina {result.get('page')}"
+    elif result.get("section"):
+        location = f"seccion {result.get('section')}"
+    else:
+        location = "pagina no disponible"
+
+    return (
+        f"{index}. {result.get('file')} | "
+        f"{location} | "
+        f"score {result.get('score', 0):.4f}"
+    )
 
 
 st.set_page_config(page_title=APP_NAME, layout="centered")
@@ -38,7 +54,7 @@ if st.button("Consultar", type="primary"):
         )
     else:
         try:
-            results = retrieve(question=question, top_k=top_k)
+            results = Retriever().retrieve(query=question, top_k=top_k)
         except FileNotFoundError as error:
             st.error(str(error))
             st.info("Genera embeddings antes de consultar desde la app.")
@@ -46,7 +62,7 @@ if st.button("Consultar", type="primary"):
             _ = error
             st.error(
                 "No se pudo ejecutar retrieval. Revisa la configuracion de "
-                "GitHub Models, cuota, permisos o conectividad."
+                "OpenAI, cuota, permisos o conectividad."
             )
         except Exception as error:
             _ = error
@@ -60,7 +76,8 @@ if st.button("Consultar", type="primary"):
                 st.warning("No se recuperaron fragmentos para esta consulta.")
 
             try:
-                answer = generate_answer(question=question, chunks=results)
+                response = RAGGenerator().generate(question=question, chunks=results)
+                answer = response["answer"]
             except RuntimeError as error:
                 _ = error
                 st.error(
@@ -78,14 +95,11 @@ if st.button("Consultar", type="primary"):
                 st.warning("No se recuperaron fragmentos para esta consulta.")
 
             for index, result in enumerate(results, start=1):
-                title = (
-                    f"{index}. {result.get('file')} | "
-                    f"pagina {result.get('page')} | "
-                    f"score {result.get('score', 0):.4f}"
-                )
+                title = format_source_title(index, result)
                 with st.expander(title, expanded=index == 1):
                     st.caption(
                         f"chunk_id: {result.get('chunk_id')} | "
+                        f"section: {result.get('section')} | "
                         f"page_chunk_index: {result.get('page_chunk_index')}"
                     )
                     st.write(result.get("text", ""))
