@@ -4,7 +4,6 @@ import streamlit as st
 
 from src.config import APP_NAME, ORGANIZATION
 from src.generate.generate import RAGGenerator
-from src.retrieval.retrieval import Retriever
 from src.utils.safety import is_forbidden_question
 
 
@@ -54,19 +53,20 @@ if st.button("Consultar", type="primary"):
         )
     else:
         try:
-            results = Retriever().retrieve(query=question, top_k=top_k)
+            response = RAGGenerator().generate(query=question, history=[], top_k=top_k)
+            results = response["sources"]
         except FileNotFoundError as error:
             st.error(str(error))
             st.info("Genera embeddings antes de consultar desde la app.")
         except RuntimeError as error:
             _ = error
             st.error(
-                "No se pudo ejecutar retrieval. Revisa la configuracion de "
-                "OpenAI, cuota, permisos o conectividad."
+                "No se pudo ejecutar RAG. Revisa la configuracion de "
+                "GitHub Models, MongoDB, cuota, permisos o conectividad."
             )
         except Exception as error:
             _ = error
-            st.error("Ocurrio un error inesperado durante retrieval.")
+            st.error("Ocurrio un error inesperado durante RAG.")
         else:
             st.subheader("Pregunta")
             st.write(question)
@@ -75,20 +75,7 @@ if st.button("Consultar", type="primary"):
             if not results:
                 st.warning("No se recuperaron fragmentos para esta consulta.")
 
-            try:
-                response = RAGGenerator().generate(question=question, chunks=results)
-                answer = response["answer"]
-            except RuntimeError as error:
-                _ = error
-                st.error(
-                    "No se pudo generar la respuesta con LLM. Revisa la "
-                    "configuracion del proveedor de chat."
-                )
-            except Exception as error:
-                _ = error
-                st.error("Ocurrio un error inesperado durante la generacion.")
-            else:
-                st.write(answer)
+            st.write(response["answer"])
 
             st.subheader("Fragmentos recuperados")
             if not results:

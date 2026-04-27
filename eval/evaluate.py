@@ -15,7 +15,6 @@ from ragas.metrics.collections import (  # noqa: E402
     Faithfulness,
 )
 from src.generate.generate import RAGGenerator  # noqa: E402
-from src.retrieval.retrieval import Retriever  # noqa: E402
 from src.utils.embeddings import DEFAULT_GITHUB_EMBEDDING_MODEL  # noqa: E402
 from src.utils.llm import DEFAULT_GITHUB_CHAT_MODEL  # noqa: E402
 
@@ -31,7 +30,6 @@ def run_evaluation(limit=1):
     if limit:
         dataset = dataset[:limit]
 
-    retriever = Retriever()
     rag = RAGGenerator()
 
     github_client = AsyncOpenAI(
@@ -64,9 +62,9 @@ def run_evaluation(limit=1):
         query = item["question"]
         ground_truth = item["ground_truth"]
 
-        chunks = retriever.retrieve(query, top_k=5)
-        context_texts = [chunk["text"] for chunk in chunks if chunk.get("text")]
-        response = rag.generate(question=query, chunks=chunks)
+        chunks = rag.retriever.retrieve(query, top_k=5)
+        context_texts = [chunk["text"] for chunk in chunks]
+        response = rag.generate(query=query, history=[])
         answer = response["answer"]
 
         scores = {}

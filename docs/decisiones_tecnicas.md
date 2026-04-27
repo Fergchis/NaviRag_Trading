@@ -38,6 +38,10 @@ El retrieval usa `$vectorSearch` en MongoDB Atlas con similitud coseno porque co
 
 El indice vectorial configurado usa el campo `embedding`, 1536 dimensiones y similitud coseno.
 
+## Generacion RAG
+
+`RAGGenerator` sigue el patron de Clase 1.4: crea su propio `Retriever`, recupera chunks dentro de `generate(query, history, top_k)`, arma el contexto y llama al LLM. La diferencia necesaria es que NaviRag usa GitHub Models y mantiene el prompt educativo de trading.
+
 ## Alineacion con ejemplos de clase basados en MongoDB Atlas
 
 Los ejemplos de clase usan MongoDB Atlas para busqueda vectorial. NaviRag Trading adopta ese enfoque como unico vectorstore operativo.

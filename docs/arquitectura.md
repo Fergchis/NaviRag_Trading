@@ -19,10 +19,9 @@ PDFs locales en data/raw/
 ```text
 pregunta del usuario
   -> src/utils/safety.py
-  -> embedding de pregunta
+  -> src/generate/generate.py
   -> src/retrieval/retrieval.py con MongoDB Atlas Vector Search
   -> prompts/prompt.py
-  -> src/generate/generate.py
   -> app.py / Streamlit con respuesta y fuentes visibles
 ```
 
@@ -48,7 +47,7 @@ La evaluacion RAGAS es manual y complementaria. No se ejecuta dentro del runtime
 - `scripts/migrate_json_embeddings_to_mongodb.py`: migra embeddings historicos desde JSON local a MongoDB Atlas sin regenerarlos.
 - `src/retrieval/retrieval.py`: embebe la pregunta del usuario y consulta MongoDB Atlas Vector Search.
 - `prompts/prompt.py`: define el prompt educativo y las reglas para responder solo con contexto recuperado.
-- `src/generate/generate.py`: construye el contexto trazable, llama a GitHub Models y devuelve una respuesta controlada.
+- `src/generate/generate.py`: crea el retriever, recupera chunks, arma el contexto, llama a GitHub Models y devuelve respuesta y fuentes.
 - `src/utils/safety.py`: aplica un filtro simple por palabras clave para bloquear solicitudes obvias de asesoria financiera o senales operativas.
 - `app.py`: expone el flujo en Streamlit, muestra la respuesta educativa, fragmentos recuperados y limitaciones.
 - `eval/evaluate.py`: ejecuta una evaluacion RAGAS simple con dataset academico, limitada por defecto a una pregunta para no correr las 8 preguntas completas.

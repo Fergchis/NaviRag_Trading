@@ -1,81 +1,27 @@
-"""Controlled RAG answer generation for NaviRag Trading."""
-
 from prompts.prompt import BASE_PROMPT, INSUFFICIENT_CONTEXT_MESSAGE
+from src.retrieval.retrieval import Retriever
 from src.utils.llm import GitHubModelsLLM
-
-MAX_CONTEXT_CHARS = 8000
-
-
-def format_source_location(chunk: dict) -> str:
-    """Return source location without inventing page numbers."""
-    if chunk.get("page") is not None:
-        return f"pagina={chunk.get('page')}"
-    if chunk.get("section"):
-        return f"seccion={chunk.get('section')}"
-    return "pagina=no disponible"
 
 
 class RAGGenerator:
-    """Generate controlled educational answers from retrieved chunks."""
-
-    def __init__(
-        self,
-        llm: GitHubModelsLLM | None = None,
-        system_prompt: str = BASE_PROMPT,
-    ) -> None:
-        self.llm = llm
+    def __init__(self, system_prompt: str = BASE_PROMPT):
         self.system_prompt = system_prompt
+        self.retriever = Retriever()
+        self.llm = GitHubModelsLLM()
 
-    def format_context(self, chunks: list[dict]) -> str:
-        """Format retrieved chunks with traceable source metadata."""
-        formatted_chunks = []
-        remaining_chars = MAX_CONTEXT_CHARS
+    def generate(self, query: str, history: list[dict], top_k: int = 5) -> dict:
+        chunks = self.retriever.retrieve(query, top_k=top_k)
 
-        for index, chunk in enumerate(chunks, start=1):
-            text = (chunk.get("text") or "").strip()
-            if not text:
-                continue
-
-            source = (
-                f"Fuente {index}: archivo={chunk.get('file')}, "
-                f"{format_source_location(chunk)}, "
-                f"chunk_id={chunk.get('chunk_id')}"
-            )
-            available_text_chars = remaining_chars - len(source) - 2
-            if available_text_chars <= 0:
-                break
-
-            clipped_text = text[:available_text_chars]
-            formatted_chunks.append(f"{source}\n{clipped_text}")
-            remaining_chars -= len(source) + len(clipped_text) + 2
-
-        return "\n\n".join(formatted_chunks)
-
-    def build_prompt(self, question: str, chunks: list[dict]) -> str:
-        """Build the final prompt from the question and retrieved context."""
-        return self.system_prompt.format(
-            context=self.format_context(chunks),
-            question=question.strip(),
+        context = "\n\n".join([chunk["text"] for chunk in chunks if chunk.get("text")])
+        formatted_prompt = self.system_prompt.format(
+            context=context,
+            question=query,
             insufficient_context_message=INSUFFICIENT_CONTEXT_MESSAGE,
         )
 
-    def generate(self, question: str, chunks: list[dict]) -> dict:
-        """Generate an answer and include source chunks and token usage."""
-        if not chunks or not self.format_context(chunks):
-            return {
-                "answer": INSUFFICIENT_CONTEXT_MESSAGE,
-                "sources": chunks,
-                "prompt_tokens": 0,
-                "completion_tokens": 0,
-                "total_tokens": 0,
-            }
+        history_with_query = history + [{"role": "user", "content": query}]
+        response = self.llm.generate(formatted_prompt, history_with_query)
 
-        prompt = self.build_prompt(question=question, chunks=chunks)
-        llm = self.llm or GitHubModelsLLM()
-        response = llm.generate(
-            system_prompt="",
-            history=[{"role": "user", "content": prompt}],
-        )
         return {
             "answer": response["answer"],
             "sources": chunks,
@@ -83,8 +29,3 @@ class RAGGenerator:
             "completion_tokens": response["completion_tokens"],
             "total_tokens": response["total_tokens"],
         }
-
-
-def generate_answer(question: str, chunks: list[dict]) -> str:
-    """Generate an answer string using the RAG generator."""
-    return RAGGenerator().generate(question=question, chunks=chunks)["answer"]
