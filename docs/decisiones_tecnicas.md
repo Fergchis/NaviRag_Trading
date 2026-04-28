@@ -10,7 +10,7 @@ MongoDB Atlas Vector Search se usa como vectorstore principal para acercar la ar
 
 El JSON local en `data/vectorstore/embeddings.json` puede mantenerse como artefacto historico ignorado por Git, pero no forma parte del runtime de retrieval.
 
-La limitacion es clara: Atlas requiere configuracion externa, variables locales y un indice vectorial creado en la coleccion.
+La limitacion es clara: Atlas requiere configuracion externa, variables locales y un indice vectorial creado en la coleccion con `python create_vector_index.py`.
 
 La generacion normal de embeddings hace upsert incremental sobre la coleccion existente. Cuando cambian ingesta
 o chunking, se debe usar `python -m src.utils.embeddings --rebuild-mongodb` para borrar la coleccion configurada

@@ -41,7 +41,7 @@ Las rutas documentales se resuelven desde constantes de `src/config.py`: `data/r
 
 No subas `.env` al repositorio. El archivo contiene configuracion local y puede contener secretos.
 
-## Prueba segura de MongoDB Atlas
+## MongoDB Atlas
 
 MongoDB Atlas Vector Search es el vectorstore principal del pipeline RAG. Declara las variables MongoDB en `.env` sin subirlas al repositorio:
 
@@ -52,34 +52,10 @@ MONGODB_COLLECTION=embeddings
 MONGODB_VECTOR_INDEX=vector_index
 ```
 
-Para verificar solo presencia de variables, sin mostrar secretos:
-
-```bash
-python -m src.utils.mongodb --check-env
-```
-
-Para probar conectividad con `ping`, solo si las variables ya existen localmente:
-
-```bash
-python -m src.utils.mongodb --ping
-```
-
 Para solicitar la creacion del indice Atlas Vector Search configurado:
 
 ```bash
-python -m src.utils.mongodb --create-vector-index
-```
-
-Comando equivalente estilo Clase 1.4:
-
-```bash
 python create_vector_index.py
-```
-
-Para contar documentos en la coleccion configurada:
-
-```bash
-python -m src.utils.mongodb --count
 ```
 
 Para migrar embeddings historicos desde JSON local a MongoDB Atlas, sin regenerarlos:
