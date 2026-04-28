@@ -1,10 +1,12 @@
+import os
+
 from src.utils.mongodb import MongoDBClient
 
 mongo = MongoDBClient()
 collection = mongo.get_collection()
 
 collection.create_search_index({
-    "name": mongo.index_name,
+    "name": os.getenv("MONGODB_VECTOR_INDEX", "vector_index"),
     "type": "vectorSearch",
     "definition": {
         "fields": [
