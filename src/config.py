@@ -1,5 +1,3 @@
-"""Application configuration constants."""
-
 from pathlib import Path
 
 APP_NAME = "NaviRag Trading"
