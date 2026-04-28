@@ -109,8 +109,8 @@ python -m src.ingesta.chunking
 
 El chunking guarda `data/processed/chunks.json` con `chunk_id`, archivo, pagina cuando exista,
 seccion e indice de chunk dentro del documento procesado. Si `page=None`, la aplicacion y el prompt muestran
-la seccion documental en vez de prometer una pagina. Para texto generado por MarkItDown, el chunking fusiona
-bloques pequenos y usa un rango aproximado de 500 a 1200 caracteres por chunk.
+la seccion documental en vez de prometer una pagina. El chunking usa un split simple por caracteres con overlap,
+siguiendo el estilo de Clase 1.4.
 
 4. Genera embeddings con GitHub Models:
 
@@ -149,13 +149,7 @@ Si existen embeddings historicos en JSON local, puedes cargarlos a MongoDB Atlas
 python scripts/migrate_json_embeddings_to_mongodb.py
 ```
 
-5. Prueba retrieval con MongoDB Atlas Vector Search:
-
-```bash
-python -m src.retrieval.retrieval "que dice el material sobre gestion de riesgo" --top-k 3
-```
-
-6. Ejecuta la interfaz Streamlit:
+5. Ejecuta la interfaz Streamlit:
 
 ```bash
 streamlit run app.py
@@ -194,12 +188,12 @@ Los PDFs, chunks, embeddings, vectorstore y logs no se versionan. Permanecen com
 
 Evidencia local no versionada usada para auditoria de la entrega:
 
-- PDFs procesados: 3
-- Documentos extraidos: 3
-- Chunks generados: 855
-- Embeddings en MongoDB: 855
+- PDFs procesados: 5
+- Documentos extraidos: 5
+- Chunks generados: 338
+- Embeddings en MongoDB: 338
 - Modelo de embeddings: `openai/text-embedding-3-small`
-- Vectorstore: MongoDB Atlas reindexado con los chunks MarkItDown actuales
+- Vectorstore: MongoDB Atlas reindexado con los chunks simplificados actuales
 
 ## Estructura
 

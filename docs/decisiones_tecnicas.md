@@ -28,9 +28,8 @@ La API usada devuelve texto consolidado por documento, no paginas separadas. Par
 los registros de ingesta conservan archivo, ruta, `section="document"` y `page=None` en vez de inventar numeros
 de pagina. Esa metadata se propaga a chunks, futuros records de embeddings, MongoDB y presentacion de fuentes.
 
-El texto MarkItDown puede incluir dobles saltos de linea muy frecuentes. Por eso el chunking no trata cada bloque
-como chunk final: fusiona bloques pequenos hasta un objetivo cercano a 900 caracteres, con minimo operativo de
-500 y maximo de 1200 caracteres.
+El chunking se simplifica para seguir el estilo de Clase 1.4: divide el texto por tamaño fijo con overlap
+(`chunk_size=2200`, `overlap=200`) y conserva metadata minima para trazabilidad.
 
 ## Similitud coseno
 
@@ -94,10 +93,10 @@ Models y queda documentada como limitacion.
 
 La evidencia local indica:
 
-- PDFs procesados: 3
-- Documentos extraidos: 3
-- Chunks generados: 855
-- Embeddings en MongoDB: 855
+- PDFs procesados: 5
+- Documentos extraidos: 5
+- Chunks generados: 338
+- Embeddings en MongoDB: 338
 - Modelo de embeddings: `openai/text-embedding-3-small`
 
-MongoDB Atlas fue reindexado con los chunks MarkItDown actuales. La cobertura depende del corpus local disponible y de que los artefactos no versionados se mantengan consistentes.
+MongoDB Atlas fue reindexado con los chunks locales simplificados actuales. La cobertura depende del corpus local disponible y de que los artefactos no versionados se mantengan consistentes.

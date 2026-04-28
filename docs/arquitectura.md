@@ -40,7 +40,7 @@ La evaluacion RAGAS es manual y complementaria. No se ejecuta dentro del runtime
 ## Componentes
 
 - `src/ingesta/ingest.py`: lee PDFs desde `data/raw/`, extrae texto con `markitdown[pdf]` y guarda metadatos basicos en `data/processed/documents.json`. En este flujo MarkItDown entrega texto consolidado por documento, por lo que `page` queda en `None` y `section` queda como `document`.
-- `src/ingesta/chunking.py`: segmenta el texto extraido en chunks trazables por archivo, ruta, pagina cuando exista, seccion, `chunk_id` e indice dentro del documento procesado. Fusiona bloques pequenos de MarkItDown para evitar chunks demasiado fragmentados.
+- `src/ingesta/chunking.py`: segmenta el texto extraido con un split simple por caracteres y overlap, conservando archivo, ruta, pagina cuando exista, seccion, `chunk_id` e indice dentro del documento procesado.
 - `src/utils/embeddings.py`: genera embeddings para chunks usando GitHub Models y conserva metadata trazable como archivo, pagina cuando exista, seccion e indice de chunk.
 - `src/utils/mongodb.py`: centraliza configuracion, ping, upsert de embeddings e indice Atlas Vector Search. Guarda `section` dentro de `metadata` para futuras regeneraciones sin cambiar el campo vectorial ni el identificador `chunk_id`.
 - `create_vector_index.py`: comando raiz para solicitar el indice vectorial de MongoDB Atlas.
