@@ -1,25 +1,46 @@
+import os
+
+from langsmith import traceable
+
 from src.utils.embeddings import EmbeddingClient
 from src.utils.mongodb import MongoDBClient
 
 
 class Retriever:
-    def __init__(self):
+    def __init__(
+        self,
+        db_name: str | None = None,
+        collection_name: str | None = None,
+        index_name: str | None = None,
+    ):
         self.embedder = EmbeddingClient()
-        self.mongo = MongoDBClient()
+        self.mongo = MongoDBClient(db_name)
+        self.collection = self.mongo.get_collection(collection_name)
+        self.index_name = index_name or os.getenv("MONGODB_VECTOR_INDEX", "vector_index")
 
+    @traceable(name="retrieve")
     def retrieve(self, query: str, top_k: int = 5) -> list[dict]:
         query_embedding = self.embedder.get_embedding(query)
-        results = self.mongo.vector_search(query_embedding=query_embedding, top_k=top_k)
 
-        return [
+        results = self.collection.aggregate([
             {
-                "chunk_id": result.get("chunk_id"),
-                "file": (result.get("metadata") or {}).get("file"),
-                "page": (result.get("metadata") or {}).get("page"),
-                "section": (result.get("metadata") or {}).get("section"),
-                "page_chunk_index": (result.get("metadata") or {}).get("page_chunk_index"),
-                "text": result.get("text"),
-                "score": result.get("score", 0),
-            }
-            for result in results
-        ]
+                "$vectorSearch": {
+                    "index": self.index_name,
+                    "path": "embedding",
+                    "queryVector": query_embedding,
+                    "numCandidates": top_k * 10,
+                    "limit": top_k,
+                }
+            },
+            {
+                "$project": {
+                    "_id": 0,
+                    "chunk_id": 1,
+                    "text": 1,
+                    "metadata": 1,
+                    "score": {"$meta": "vectorSearchScore"},
+                }
+            },
+        ])
+
+        return list(results)

@@ -14,9 +14,8 @@ from ragas.metrics.collections import (  # noqa: E402
     ContextRecall,
     Faithfulness,
 )
+from prompts.prompt import RAG_SYSTEM_PROMPT  # noqa: E402
 from src.generate.generate import RAGGenerator  # noqa: E402
-from src.utils.embeddings import DEFAULT_GITHUB_EMBEDDING_MODEL  # noqa: E402
-from src.utils.llm import DEFAULT_GITHUB_CHAT_MODEL  # noqa: E402
 
 load_dotenv()
 
@@ -30,7 +29,7 @@ def run_evaluation(limit=1):
     if limit:
         dataset = dataset[:limit]
 
-    rag = RAGGenerator()
+    rag = RAGGenerator(system_prompt=RAG_SYSTEM_PROMPT)
 
     github_client = AsyncOpenAI(
         api_key=os.getenv("GITHUB_TOKEN"),
@@ -38,13 +37,13 @@ def run_evaluation(limit=1):
     )
 
     llm = llm_factory(
-        os.getenv("GITHUB_CHAT_MODEL") or DEFAULT_GITHUB_CHAT_MODEL,
+        os.getenv("GITHUB_CHAT_MODEL", "openai/gpt-4o-mini"),
         provider="openai",
         client=github_client,
     )
     embeddings = embedding_factory(
         provider="openai",
-        model=os.getenv("GITHUB_EMBEDDING_MODEL") or DEFAULT_GITHUB_EMBEDDING_MODEL,
+        model=os.getenv("GITHUB_EMBEDDING_MODEL", "openai/text-embedding-3-small"),
         client=github_client,
     )
 

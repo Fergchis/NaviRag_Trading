@@ -1,99 +1,81 @@
 """Streamlit entry point for NaviRag Trading."""
 
+import uuid
+
 import streamlit as st
 
+from prompts.prompt import RAG_SYSTEM_PROMPT
 from src.config import APP_NAME, ORGANIZATION
 from src.generate.generate import RAGGenerator
 from src.utils.safety import is_forbidden_question
 
 
-def format_source_title(index: int, result: dict) -> str:
-    """Build a source title without inventing page numbers."""
-    if result.get("page") is not None:
-        location = f"pagina {result.get('page')}"
-    elif result.get("section"):
-        location = f"seccion {result.get('section')}"
-    else:
-        location = "pagina no disponible"
-
-    return (
-        f"{index}. {result.get('file')} | "
-        f"{location} | "
-        f"score {result.get('score', 0):.4f}"
-    )
-
-
-st.set_page_config(page_title=APP_NAME, layout="centered")
-
+st.set_page_config(page_title=APP_NAME, layout="wide")
 st.title(APP_NAME)
 st.caption(f"Demo educativa para {ORGANIZATION}")
 
-st.info(
-    "NaviRag Trading recupera fragmentos desde documentos cargados con fines "
-    "educativos. No entrega senales de trading, recomendaciones financieras "
-    "ni asesoria de inversion."
-)
+with st.sidebar:
+    st.header("Conversation")
+    if st.button("New conversation"):
+        st.session_state.history = []
+        st.session_state.session_id = str(uuid.uuid4())
+        st.rerun()
 
-top_k = st.slider("Cantidad de fragmentos a recuperar", min_value=1, max_value=5, value=3)
+if "history" not in st.session_state:
+    st.session_state.history = []
 
-question = st.text_area(
-    "Pregunta educativa sobre los documentos cargados",
-    placeholder="Ejemplo: Que dice el material sobre gestion de riesgo?",
-)
+if "session_id" not in st.session_state:
+    st.session_state.session_id = str(uuid.uuid4())
 
-if st.button("Consultar", type="primary"):
-    if not question.strip():
-        st.warning("Ingresa una pregunta para continuar.")
-    elif is_forbidden_question(question):
-        st.error(
-            "No puedo entregar senales de compra o venta, recomendaciones "
-            "financieras ni asesoria de inversion. NaviRag Trading tiene un "
-            "enfoque educativo y solo puede explicar conceptos presentes en "
-            "los documentos cargados."
-        )
-    else:
-        try:
-            response = RAGGenerator().generate(query=question, history=[], top_k=top_k)
-            results = response["sources"]
-        except FileNotFoundError as error:
-            st.error(str(error))
-            st.info("Genera embeddings antes de consultar desde la app.")
-        except RuntimeError as error:
-            _ = error
-            st.error(
-                "No se pudo ejecutar RAG. Revisa la configuracion de "
-                "GitHub Models, MongoDB, cuota, permisos o conectividad."
-            )
-        except Exception as error:
-            _ = error
-            st.error("Ocurrio un error inesperado durante RAG.")
-        else:
-            st.subheader("Pregunta")
-            st.write(question)
+if "rag" not in st.session_state:
+    st.session_state.rag = RAGGenerator(system_prompt=RAG_SYSTEM_PROMPT)
 
-            st.subheader("Respuesta educativa")
-            if not results:
-                st.warning("No se recuperaron fragmentos para esta consulta.")
+chat_window = st.container(height=550)
+with chat_window:
+    for message in st.session_state.history:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
-            st.write(response["answer"])
+if query := st.chat_input("Pregunta sobre los PDFs de trading..."):
+    st.session_state.history.append({"role": "user", "content": query})
 
-            st.subheader("Fragmentos recuperados")
-            if not results:
-                st.warning("No se recuperaron fragmentos para esta consulta.")
+    with chat_window:
+        with st.chat_message("user"):
+            st.markdown(query)
 
-            for index, result in enumerate(results, start=1):
-                title = format_source_title(index, result)
-                with st.expander(title, expanded=index == 1):
-                    st.caption(
-                        f"chunk_id: {result.get('chunk_id')} | "
-                        f"section: {result.get('section')} | "
-                        f"page_chunk_index: {result.get('page_chunk_index')}"
+        with st.chat_message("assistant"):
+            if is_forbidden_question(query):
+                answer = (
+                    "No puedo entregar recomendaciones financieras, senales de "
+                    "compra o venta ni instrucciones de inversion. Puedo explicar "
+                    "conceptos de trading con fines educativos."
+                )
+                st.markdown(answer)
+            else:
+                with st.spinner("Thinking..."):
+                    response = st.session_state.rag.generate(
+                        query=query,
+                        history=st.session_state.history[:-1],
                     )
-                    st.write(result.get("text", ""))
 
-            st.subheader("Limitaciones")
-            st.write(
-                "La respuesta se genera solo desde los fragmentos recuperados. "
-                "No reemplaza la revision del material fuente ni constituye "
-                "asesoria financiera."
-            )
+                answer = response["answer"]
+                st.markdown(answer)
+
+                with st.expander("Sources"):
+                    for source in response["sources"]:
+                        st.write(
+                            f"- {source.get('file')} | "
+                            f"page: {source.get('page')} | "
+                            f"section: {source.get('section')} | "
+                            f"chunk: {source.get('page_chunk_index')} | "
+                            f"chars: {source.get('character_count')}"
+                        )
+
+                with st.expander("Token usage"):
+                    st.write(
+                        f"Prompt: {response['prompt_tokens']} | "
+                        f"Completion: {response['completion_tokens']} | "
+                        f"Total: {response['total_tokens']}"
+                    )
+
+    st.session_state.history.append({"role": "assistant", "content": answer})

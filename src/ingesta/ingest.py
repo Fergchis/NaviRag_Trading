@@ -1,15 +1,17 @@
-import json
 from pathlib import Path
 
 from markitdown import MarkItDown
 
-from src.config import DATA_PROCESSED_DIR, DATA_RAW_DIR
-
-DOCUMENTS_FILE = DATA_PROCESSED_DIR / "documents.json"
+from src.config import DATA_RAW_DIR
+from src.utils.embeddings import EmbeddingClient
+from src.utils.mongodb import MongoDBClient
 
 
 class PDFIngester:
-    def __init__(self):
+    def __init__(self, db_name: str | None = None, collection_name: str | None = None):
+        self.embedder = EmbeddingClient()
+        self.mongo = MongoDBClient(db_name)
+        self.collection = self.mongo.get_collection(collection_name)
         self.converter = MarkItDown()
 
     def scan_pdfs(self, directory: str) -> list[Path]:
@@ -19,44 +21,55 @@ class PDFIngester:
         result = self.converter.convert(str(file_path))
         return result.text_content
 
-    def ingest_directory(self, directory: str = str(DATA_RAW_DIR)) -> list[dict]:
-        pdf_files = self.scan_pdfs(directory)
-        print(f"Found {len(pdf_files)} PDF(s) in '{directory}'")
+    def _split_text(
+        self,
+        text: str,
+        chunk_size: int = 2200,
+        overlap: int = 200,
+    ) -> list[str]:
+        chunks = []
+        start = 0
+        while start < len(text):
+            end = start + chunk_size
+            chunks.append(text[start:end])
+            start += chunk_size - overlap
+        return chunks
+
+    def _already_ingested(self, filename: str) -> bool:
+        return self.collection.count_documents({"metadata.file": filename}) > 0
+
+    def ingest_file(self, file_path: Path):
+        if self._already_ingested(file_path.name):
+            print(f"Skipping (already ingested): {file_path.name}")
+            return
+
+        print(f"Processing: {file_path.name}")
+        text = self._convert_to_text(file_path)
+        chunks = self._split_text(text)
 
         documents = []
-        for file_path in pdf_files:
-            print(f"Processing: {file_path.name}")
-            text = self._convert_to_text(file_path)
+        for i, chunk in enumerate(chunks, start=1):
+            embedding = self.embedder.get_embedding(chunk)
             documents.append({
-                "file": file_path.name,
-                "path": str(file_path),
-                "page": None,
-                "section": "document",
-                "text": text,
+                "chunk_id": f"{file_path.stem}_{i}",
+                "text": chunk,
+                "embedding": embedding,
+                "metadata": {
+                    "file": file_path.name,
+                    "page": None,
+                    "section": "document",
+                    "page_chunk_index": i,
+                    "character_count": len(chunk),
+                },
             })
 
-        return documents
+        if documents:
+            self.collection.insert_many(documents)
+        print(f"  Inserted {len(documents)} chunks.")
 
-
-def save_documents(documents: list[dict]):
-    DATA_PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "documents": documents,
-        "total_documents": len(documents),
-    }
-    DOCUMENTS_FILE.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-
-
-def main():
-    ingester = PDFIngester()
-    documents = ingester.ingest_directory()
-    save_documents(documents)
-    print(f"Ingestion complete. Documents: {len(documents)}")
-    print(f"Output: {DOCUMENTS_FILE}")
-
-
-if __name__ == "__main__":
-    main()
+    def ingest_directory(self, directory: str = str(DATA_RAW_DIR)):
+        pdf_files = self.scan_pdfs(directory)
+        print(f"Found {len(pdf_files)} PDF(s) in '{directory}'")
+        for file_path in pdf_files:
+            self.ingest_file(file_path)
+        print("Ingestion complete.")
