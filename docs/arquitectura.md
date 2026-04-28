@@ -19,10 +19,9 @@ PDFs locales en data/raw/
 ```text
 pregunta del usuario
   -> src/utils/safety.py
-  -> embedding de pregunta
+  -> src/generate/generate.py
   -> src/retrieval/retrieval.py con MongoDB Atlas Vector Search
   -> prompts/prompt.py
-  -> src/generate/generate.py
   -> app.py / Streamlit con respuesta y fuentes visibles
 ```
 
@@ -32,8 +31,8 @@ pregunta del usuario
 eval/dataset.json
   -> eval/evaluate.py
   -> retrieval/generacion del pipeline RAG
-  -> evaluacion RAGAS manual por metrica seleccionada
-  -> eval/evaluation_results.md
+  -> evaluacion RAGAS manual
+  -> impresion de resultados y resumen
 ```
 
 La evaluacion RAGAS es manual y complementaria. No se ejecuta dentro del runtime de Streamlit ni conserva un historico avanzado de corridas.
@@ -41,17 +40,17 @@ La evaluacion RAGAS es manual y complementaria. No se ejecuta dentro del runtime
 ## Componentes
 
 - `src/ingesta/ingest.py`: lee PDFs desde `data/raw/`, extrae texto con `markitdown[pdf]` y guarda metadatos basicos en `data/processed/documents.json`. En este flujo MarkItDown entrega texto consolidado por documento, por lo que `page` queda en `None` y `section` queda como `document`.
-- `src/ingesta/chunking.py`: segmenta el texto extraido en chunks trazables por archivo, ruta, pagina cuando exista, seccion, `chunk_id` e indice dentro del documento procesado. Fusiona bloques pequenos de MarkItDown para evitar chunks demasiado fragmentados.
+- `src/ingesta/chunking.py`: segmenta el texto extraido con un split simple por caracteres y overlap, conservando archivo, ruta, pagina cuando exista, seccion, `chunk_id` e indice dentro del documento procesado.
 - `src/utils/embeddings.py`: genera embeddings para chunks usando GitHub Models y conserva metadata trazable como archivo, pagina cuando exista, seccion e indice de chunk.
-- `src/utils/mongodb.py`: centraliza configuracion, ping, upsert de embeddings e indice Atlas Vector Search. Guarda `section` dentro de `metadata` para futuras regeneraciones sin cambiar el campo vectorial ni el identificador `chunk_id`.
-- `create_vector_index.py`: comando raiz para solicitar el indice vectorial de MongoDB Atlas.
+- `src/utils/mongodb.py`: cliente simple de MongoDB Atlas, coleccion de embeddings, upsert de embeddings y busqueda vectorial.
+- `create_vector_index.py`: comando directo para solicitar el indice vectorial de MongoDB Atlas.
 - `scripts/migrate_json_embeddings_to_mongodb.py`: migra embeddings historicos desde JSON local a MongoDB Atlas sin regenerarlos.
 - `src/retrieval/retrieval.py`: embebe la pregunta del usuario y consulta MongoDB Atlas Vector Search.
 - `prompts/prompt.py`: define el prompt educativo y las reglas para responder solo con contexto recuperado.
-- `src/generate/generate.py`: construye el contexto trazable, llama a GitHub Models y devuelve una respuesta controlada.
+- `src/generate/generate.py`: crea el retriever, recupera chunks, arma el contexto, llama a GitHub Models y devuelve respuesta y fuentes.
 - `src/utils/safety.py`: aplica un filtro simple por palabras clave para bloquear solicitudes obvias de asesoria financiera o senales operativas.
 - `app.py`: expone el flujo en Streamlit, muestra la respuesta educativa, fragmentos recuperados y limitaciones.
-- `eval/evaluate.py`: prepara evaluacion RAGAS con dataset academico, modo `--dry-run`, ejecucion controlada con `--limit`/`--metrics` y reporte Markdown sin inventar resultados.
+- `eval/evaluate.py`: ejecuta una evaluacion RAGAS simple con dataset academico, limitada por defecto a una pregunta para no correr las 8 preguntas completas.
 
 ## Persistencia
 

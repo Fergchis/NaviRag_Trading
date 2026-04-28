@@ -10,7 +10,7 @@ MongoDB Atlas Vector Search se usa como vectorstore principal para acercar la ar
 
 El JSON local en `data/vectorstore/embeddings.json` puede mantenerse como artefacto historico ignorado por Git, pero no forma parte del runtime de retrieval.
 
-La limitacion es clara: Atlas requiere configuracion externa, variables locales y un indice vectorial creado en la coleccion.
+La limitacion es clara: Atlas requiere configuracion externa, variables locales y un indice vectorial creado en la coleccion con `python create_vector_index.py`.
 
 La generacion normal de embeddings hace upsert incremental sobre la coleccion existente. Cuando cambian ingesta
 o chunking, se debe usar `python -m src.utils.embeddings --rebuild-mongodb` para borrar la coleccion configurada
@@ -28,15 +28,18 @@ La API usada devuelve texto consolidado por documento, no paginas separadas. Par
 los registros de ingesta conservan archivo, ruta, `section="document"` y `page=None` en vez de inventar numeros
 de pagina. Esa metadata se propaga a chunks, futuros records de embeddings, MongoDB y presentacion de fuentes.
 
-El texto MarkItDown puede incluir dobles saltos de linea muy frecuentes. Por eso el chunking no trata cada bloque
-como chunk final: fusiona bloques pequenos hasta un objetivo cercano a 900 caracteres, con minimo operativo de
-500 y maximo de 1200 caracteres.
+El chunking se simplifica para seguir el estilo de Clase 1.4: divide el texto por tamaño fijo con overlap
+(`chunk_size=2200`, `overlap=200`) y conserva metadata minima para trazabilidad.
 
 ## Similitud coseno
 
 El retrieval usa `$vectorSearch` en MongoDB Atlas con similitud coseno porque compara la orientacion entre vectores de embeddings y es una metrica estandar para recuperar texto semanticamente cercano.
 
 El indice vectorial configurado usa el campo `embedding`, 1536 dimensiones y similitud coseno.
+
+## Generacion RAG
+
+`RAGGenerator` sigue el patron de Clase 1.4: crea su propio `Retriever`, recupera chunks dentro de `generate(query, history, top_k)`, arma el contexto y llama al LLM. La diferencia necesaria es que NaviRag usa GitHub Models y mantiene el prompt educativo de trading.
 
 ## Alineacion con ejemplos de clase basados en MongoDB Atlas
 
@@ -68,17 +71,18 @@ RAGAS se incorpora como evaluacion complementaria y manual, alineada con Clase 1
 `eval/dataset.json` y un script separado `eval/evaluate.py`. Las metricas preparadas son `faithfulness`,
 `answer_relevancy`, `context_precision` y `context_recall`.
 
-La app y el retrieval no dependen de RAGAS para funcionar. El modo `--dry-run` valida dataset e imports sin llamar
-MongoDB, GitHub Models, retrieval, generacion ni scorers RAGAS, y no sobrescribe resultados preservados.
+La app y el retrieval no dependen de RAGAS para funcionar. El script sigue el estilo simple de Clase 1.4:
+carga el dataset, crea el retriever y generador, configura GitHub Models para RAGAS, recorre preguntas, imprime scores
+y muestra un resumen. Por defecto se llama como `run_evaluation(limit=1)`.
 
 La referencia de clase usa RAGAS con cliente OpenAI directo. NaviRag mantiene GitHub Models y usa el cliente
 `AsyncOpenAI` solo como capa compatible apuntando a `https://models.github.ai/inference`, con `GITHUB_TOKEN`.
 No se agrega `OPENAI_API_KEY` ni se cambia proveedor.
 
-La ejecucion real debe hacerse de forma explicita y acotada, por ejemplo:
+La ejecucion acotada queda como el comportamiento por defecto:
 
 ```bash
-python eval/evaluate.py --prepare-rows --run-ragas --limit 1 --metrics context_precision --max-workers 1 --timeout 300
+python eval/evaluate.py
 ```
 
 El resultado preservado actualmente es una prueba parcial con `context_precision=1.0` para `RAGAS-01`. No se afirma
@@ -89,10 +93,10 @@ Models y queda documentada como limitacion.
 
 La evidencia local indica:
 
-- PDFs procesados: 3
-- Documentos extraidos: 3
-- Chunks generados: 855
-- Embeddings en MongoDB: 855
+- PDFs procesados: 5
+- Documentos extraidos: 5
+- Chunks generados: 338
+- Embeddings en MongoDB: 338
 - Modelo de embeddings: `openai/text-embedding-3-small`
 
-MongoDB Atlas fue reindexado con los chunks MarkItDown actuales. La cobertura depende del corpus local disponible y de que los artefactos no versionados se mantengan consistentes.
+MongoDB Atlas fue reindexado con los chunks locales simplificados actuales. La cobertura depende del corpus local disponible y de que los artefactos no versionados se mantengan consistentes.

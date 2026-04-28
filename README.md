@@ -41,7 +41,7 @@ Las rutas documentales se resuelven desde constantes de `src/config.py`: `data/r
 
 No subas `.env` al repositorio. El archivo contiene configuracion local y puede contener secretos.
 
-## Prueba segura de MongoDB Atlas
+## MongoDB Atlas
 
 MongoDB Atlas Vector Search es el vectorstore principal del pipeline RAG. Declara las variables MongoDB en `.env` sin subirlas al repositorio:
 
@@ -52,34 +52,10 @@ MONGODB_COLLECTION=embeddings
 MONGODB_VECTOR_INDEX=vector_index
 ```
 
-Para verificar solo presencia de variables, sin mostrar secretos:
-
-```bash
-python -m src.utils.mongodb --check-env
-```
-
-Para probar conectividad con `ping`, solo si las variables ya existen localmente:
-
-```bash
-python -m src.utils.mongodb --ping
-```
-
 Para solicitar la creacion del indice Atlas Vector Search configurado:
 
 ```bash
-python -m src.utils.mongodb --create-vector-index
-```
-
-Comando equivalente estilo Clase 1.4:
-
-```bash
 python create_vector_index.py
-```
-
-Para contar documentos en la coleccion configurada:
-
-```bash
-python -m src.utils.mongodb --count
 ```
 
 Para migrar embeddings historicos desde JSON local a MongoDB Atlas, sin regenerarlos:
@@ -109,8 +85,8 @@ python -m src.ingesta.chunking
 
 El chunking guarda `data/processed/chunks.json` con `chunk_id`, archivo, pagina cuando exista,
 seccion e indice de chunk dentro del documento procesado. Si `page=None`, la aplicacion y el prompt muestran
-la seccion documental en vez de prometer una pagina. Para texto generado por MarkItDown, el chunking fusiona
-bloques pequenos y usa un rango aproximado de 500 a 1200 caracteres por chunk.
+la seccion documental en vez de prometer una pagina. El chunking usa un split simple por caracteres con overlap,
+siguiendo el estilo de Clase 1.4.
 
 4. Genera embeddings con GitHub Models:
 
@@ -149,13 +125,7 @@ Si existen embeddings historicos en JSON local, puedes cargarlos a MongoDB Atlas
 python scripts/migrate_json_embeddings_to_mongodb.py
 ```
 
-5. Prueba retrieval con MongoDB Atlas Vector Search:
-
-```bash
-python -m src.retrieval.retrieval "que dice el material sobre gestion de riesgo" --top-k 3
-```
-
-6. Ejecuta la interfaz Streamlit:
+5. Ejecuta la interfaz Streamlit:
 
 ```bash
 streamlit run app.py
@@ -194,12 +164,12 @@ Los PDFs, chunks, embeddings, vectorstore y logs no se versionan. Permanecen com
 
 Evidencia local no versionada usada para auditoria de la entrega:
 
-- PDFs procesados: 3
-- Documentos extraidos: 3
-- Chunks generados: 855
-- Embeddings en MongoDB: 855
+- PDFs procesados: 5
+- Documentos extraidos: 5
+- Chunks generados: 338
+- Embeddings en MongoDB: 338
 - Modelo de embeddings: `openai/text-embedding-3-small`
-- Vectorstore: MongoDB Atlas reindexado con los chunks MarkItDown actuales
+- Vectorstore: MongoDB Atlas reindexado con los chunks simplificados actuales
 
 ## Estructura
 
@@ -220,16 +190,12 @@ La evaluacion documenta el comportamiento esperado de una demo academica: respue
 
 RAGAS queda preparado como evaluacion complementaria y manual, no como parte del runtime de Streamlit. El dataset esta en `eval/dataset.json` y el script en `eval/evaluate.py`.
 
-Validacion segura sin ejecutar retrieval, generacion ni RAGAS:
+Por defecto el script ejecuta solo una pregunta para evitar correr el dataset completo:
 
 ```bash
-python eval/evaluate.py --dry-run
+python eval/evaluate.py
 ```
 
-La ejecucion real de RAGAS se probo parcialmente con `--limit 1`. El resultado preservado actualmente es `context_precision=1.0` para `RAGAS-01`; no se afirma evaluacion completa de las 8 preguntas ni de todas las metricas. `answer_relevancy` presento timeouts con GitHub Models y queda como limitacion documentada.
+La ejecucion real de RAGAS se probo parcialmente con una pregunta. El resultado preservado actualmente es `context_precision=1.0` para `RAGAS-01`; no se afirma evaluacion completa de las 8 preguntas ni de todas las metricas. `answer_relevancy` presento timeouts con GitHub Models y queda como limitacion documentada.
 
-NaviRag usa GitHub Models; no se agrega `OPENAI_API_KEY` ni se cambia proveedor. Para una prueba controlada:
-
-```bash
-python eval/evaluate.py --prepare-rows --run-ragas --limit 1 --metrics context_precision --max-workers 1 --timeout 300
-```
+NaviRag usa GitHub Models; no se agrega `OPENAI_API_KEY` ni se cambia proveedor.

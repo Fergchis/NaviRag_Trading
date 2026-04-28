@@ -42,8 +42,9 @@ def main() -> None:
     args = parse_args()
     try:
         records = load_json_embedding_records(args.input)
-        written = MongoDBClient().upsert_embedding_records(records)
-        total = MongoDBClient().count_documents()
+        mongo = MongoDBClient()
+        written = mongo.upsert_embedding_records(records)
+        total = mongo.get_collection().count_documents({})
     except FileNotFoundError as error:
         print(str(error))
     except RuntimeError as error:
