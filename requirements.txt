@@ -7,3 +7,4 @@ dnspython>=2.6,<3.0
 ragas
 datasets
 pandas
+langsmith

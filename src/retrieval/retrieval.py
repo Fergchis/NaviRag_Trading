@@ -1,5 +1,7 @@
 import os
 
+from langsmith import traceable
+
 from src.utils.embeddings import EmbeddingClient
 from src.utils.mongodb import MongoDBClient
 
@@ -16,6 +18,7 @@ class Retriever:
         self.collection = self.mongo.get_collection(collection_name)
         self.index_name = index_name or os.getenv("MONGODB_VECTOR_INDEX", "vector_index")
 
+    @traceable(name="retrieve")
     def retrieve(self, query: str, top_k: int = 5) -> list[dict]:
         query_embedding = self.embedder.get_embedding(query)
 
