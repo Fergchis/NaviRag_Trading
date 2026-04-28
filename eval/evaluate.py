@@ -8,12 +8,7 @@ from dotenv import load_dotenv  # noqa: E402
 from openai import AsyncOpenAI  # noqa: E402
 from ragas.embeddings.base import embedding_factory  # noqa: E402
 from ragas.llms.base import llm_factory  # noqa: E402
-from ragas.metrics.collections import (  # noqa: E402
-    AnswerRelevancy,
-    ContextPrecision,
-    ContextRecall,
-    Faithfulness,
-)
+from ragas.metrics.collections import Faithfulness, AnswerRelevancy, ContextPrecision, ContextRecall  # noqa: E402
 from prompts.prompt import RAG_SYSTEM_PROMPT  # noqa: E402
 from src.generate.generate import RAGGenerator  # noqa: E402
 

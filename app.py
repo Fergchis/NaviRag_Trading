@@ -1,5 +1,3 @@
-"""Streamlit entry point for NaviRag Trading."""
-
 import uuid
 
 import streamlit as st
