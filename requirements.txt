@@ -8,3 +8,5 @@ ragas
 datasets
 pandas
 langsmith
+langchain
+openai

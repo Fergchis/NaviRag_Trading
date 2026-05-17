@@ -2,12 +2,19 @@
 .env.*
 !.env.example
 
-__pycache__/
-*.pyc
-
 .venv/
 venv/
 .codex_deps/
+
+__pycache__/
+*.pyc
+*.pyo
+
+.git/
+.gitignore
+
+referencias_clase/
+_referencias_clase/
 
 data/raw/*
 !data/raw/.gitkeep
@@ -20,10 +27,5 @@ data/vectorstore/*
 
 data/memory/*
 !data/memory/.gitkeep
-
-referencias_clase/
-_referencias_clase/
-
-docs/
 
 *.log

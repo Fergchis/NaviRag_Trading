@@ -2,10 +2,8 @@ import uuid
 
 import streamlit as st
 
-from prompts.prompt import RAG_SYSTEM_PROMPT
+from src.agent import TradingAgent
 from src.config import APP_NAME, ORGANIZATION
-from src.generate.generate import RAGGenerator
-from src.utils.safety import is_forbidden_question
 
 
 st.set_page_config(page_title=APP_NAME, layout="wide")
@@ -13,8 +11,8 @@ st.title(APP_NAME)
 st.caption(f"Demo educativa para {ORGANIZATION}")
 
 with st.sidebar:
-    st.header("Conversation")
-    if st.button("New conversation"):
+    st.header("Conversación")
+    if st.button("Nueva conversación"):
         st.session_state.history = []
         st.session_state.session_id = str(uuid.uuid4())
         st.rerun()
@@ -25,8 +23,8 @@ if "history" not in st.session_state:
 if "session_id" not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
 
-if "rag" not in st.session_state:
-    st.session_state.rag = RAGGenerator(system_prompt=RAG_SYSTEM_PROMPT)
+if "agent" not in st.session_state:
+    st.session_state.agent = TradingAgent()
 
 chat_window = st.container(height=550)
 with chat_window:
@@ -42,38 +40,40 @@ if query := st.chat_input("Pregunta sobre los PDFs de trading..."):
             st.markdown(query)
 
         with st.chat_message("assistant"):
-            if is_forbidden_question(query):
-                answer = (
-                    "No puedo entregar recomendaciones financieras, senales de "
-                    "compra o venta ni instrucciones de inversion. Puedo explicar "
-                    "conceptos de trading con fines educativos."
+            with st.spinner("Procesando..."):
+                result = st.session_state.agent.run(
+                    query=query,
+                    history=st.session_state.history[:-1],
+                    session_id=st.session_state.session_id,
                 )
-                st.markdown(answer)
-            else:
-                with st.spinner("Thinking..."):
-                    response = st.session_state.rag.generate(
-                        query=query,
-                        history=st.session_state.history[:-1],
-                    )
 
-                answer = response["answer"]
-                st.markdown(answer)
+            answer = result["answer"]
+            st.markdown(answer)
 
-                with st.expander("Sources"):
-                    for source in response["sources"]:
-                        st.write(
-                            f"- {source.get('file')} | "
-                            f"page: {source.get('page')} | "
-                            f"section: {source.get('section')} | "
-                            f"chunk: {source.get('page_chunk_index')} | "
-                            f"chars: {source.get('character_count')}"
-                        )
+            with st.expander("Fuentes"):
+                for source in result["sources"]:
+                    source_details = [
+                        f"- {source.get('file')}",
+                        f"section: {source.get('section')}",
+                        f"chunk: {source.get('page_chunk_index')}",
+                        f"chars: {source.get('character_count')}",
+                    ]
+                    if source.get("page") is not None:
+                        source_details.insert(1, f"page: {source.get('page')}")
+                    st.write(" | ".join(source_details))
 
-                with st.expander("Token usage"):
-                    st.write(
-                        f"Prompt: {response['prompt_tokens']} | "
-                        f"Completion: {response['completion_tokens']} | "
-                        f"Total: {response['total_tokens']}"
-                    )
+            with st.expander("Uso de tokens"):
+                st.write(
+                    f"Prompt: {result['prompt_tokens']} | "
+                    f"Completion: {result['completion_tokens']} | "
+                    f"Total: {result['total_tokens']}"
+                )
+
+            with st.expander("Plan ejecutado"):
+                st.write(result["plan"])
+
+            with st.expander("Decisión del agente"):
+                st.write(result["decision"])
+                st.write(result["memory"])
 
     st.session_state.history.append({"role": "assistant", "content": answer})
