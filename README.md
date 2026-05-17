@@ -192,6 +192,92 @@ streamlit run app.py
 
 Abrir la aplicación en el navegador y realizar preguntas sobre los documentos cargados.
 
+## Ejecutar en otro PC
+
+Clonar el repositorio no es suficiente para ejecutar todo el proyecto. NaviRag Trading depende de servicios externos, variables locales, MongoDB Atlas y documentos previamente ingeridos.
+
+### 1. Clonar el repositorio
+
+```powershell
+git clone https://github.com/Fergchis/NaviRag_Trading.git
+cd NaviRag_Trading
+git checkout version-2
+```
+
+### 2. Crear entorno virtual e instalar dependencias
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+### 3. Configurar variables de entorno
+
+Crear un archivo `.env` local usando `.env.example` como referencia.
+
+Ejemplo sin valores reales:
+
+```env
+GITHUB_TOKEN=...
+GITHUB_EMBEDDING_MODEL=openai/text-embedding-3-small
+GITHUB_CHAT_MODEL=openai/gpt-4o-mini
+GITHUB_MODELS_EMBEDDINGS_ENDPOINT=https://models.github.ai/inference/embeddings
+
+MONGODB_CONNECTION_STRING=mongodb+srv://...
+MONGODB_DATABASE=navirag
+MONGODB_COLLECTION=embeddings
+MONGODB_VECTOR_INDEX=vector_index
+```
+
+Además, en MongoDB Atlas la IP pública del nuevo PC debe estar permitida en **Network Access**.
+
+### 4. Elegir fuente documental
+
+Existen dos formas de usar la base documental.
+
+#### Opción A: usar MongoDB Atlas ya cargado
+
+Esta opción sirve si la base ya tiene documentos ingeridos.
+
+Requisitos:
+
+- colección con chunks existentes;
+- índice vectorial creado;
+- credenciales correctas en `.env`;
+- IP permitida en MongoDB Atlas.
+
+Ejecutar la aplicación:
+
+```powershell
+python -m streamlit run app.py
+```
+
+#### Opción B: reconstruir la base documental
+
+Esta opción sirve si se quiere cargar nuevamente los PDFs desde el PC local.
+
+Requisitos:
+
+- PDFs dentro de `data/raw/`;
+- token válido para GitHub Models;
+- MongoDB Atlas configurado;
+- variables de entorno completas.
+
+Crear índice, ejecutar ingesta y levantar Streamlit:
+
+```powershell
+python create_vector_index.py
+
+python -c "from src.ingesta.ingest import PDFIngester; PDFIngester().ingest_directory('data/raw')"
+
+python -m streamlit run app.py
+```
+
+El repositorio no incluye `.env`, PDFs pesados ni memoria local de sesión. Estos archivos se configuran localmente.
+
 ## Evaluación
 
 El proyecto incluye una evaluación básica con RAGAS usando `eval/dataset.json`.
