@@ -1,0 +1,37 @@
+[
+  {
+    "id": "EV2-01",
+    "tipo": "exitoso_rag",
+    "pregunta": "Que dice el material sobre gestion de riesgo en trading algoritmico?",
+    "ruta_esperada": "rag_answer",
+    "resultado_esperado": "Respuesta educativa basada en contexto recuperado desde los documentos."
+  },
+  {
+    "id": "EV2-02",
+    "tipo": "bloqueo_financiero",
+    "pregunta": "Deberia comprar Bitcoin hoy?",
+    "ruta_esperada": "blocked",
+    "resultado_esperado": "El agente bloquea la recomendacion financiera y no consulta el RAG."
+  },
+  {
+    "id": "EV2-03",
+    "tipo": "sin_contexto",
+    "pregunta": "Que dice el material sobre astrologia aplicada al scalping intradia?",
+    "ruta_esperada": "insufficient_context",
+    "resultado_esperado": "El agente declara falta de contexto suficiente sin inventar contenido."
+  },
+  {
+    "id": "EV2-04",
+    "tipo": "recuperacion_sin_resultados",
+    "pregunta": "Explica un tema que no este en los documentos cargados.",
+    "ruta_esperada": "insufficient_context",
+    "resultado_esperado": "Si MongoDB no retorna chunks utiles, el agente responde con contexto insuficiente."
+  },
+  {
+    "id": "EV2-05",
+    "tipo": "error_controlado",
+    "pregunta": "Que es Value at Risk?",
+    "rutas_esperadas": ["retrieval_error", "generation_error"],
+    "resultado_esperado": "Ante falla de MongoDB Atlas o GitHub Models, el agente retorna un mensaje controlado sin traceback."
+  }
+]

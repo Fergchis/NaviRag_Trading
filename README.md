@@ -10,30 +10,38 @@ El sistema no entrega recomendaciones financieras, señales de trading, instrucc
 
 ## Arquitectura
 
-Flujo de ingesta:
+Flujo de ingesta offline:
 
 ```text
-PDFs locales
-  -> Ingesta
-  -> Embeddings
-  -> MongoDB Atlas Vector Search
+PDFs locales -> Ingesta -> Embeddings -> MongoDB Atlas Vector Search
 ```
 
-Flujo de consulta:
+Flujo de consulta runtime:
 
-```text
-Usuario
-  -> Streamlit
-  -> TradingAgent
-  -> Tools
-  -> Respuesta educativa con fuentes
+```mermaid
+flowchart TD
+    U[Usuario] --> S[Streamlit]
+    S --> A[TradingAgent]
+    A --> G[LangGraph StateGraph]
+    G --> M[load_memory]
+    M --> F[check_financial_safety]
+    F -->|bloquea| B[blocked_response]
+    F -->|permite| P[agent]
+    P --> Q[generate_query]
+    Q --> R[retrieve_context]
+    R -->|sin contexto| W[generate_answer]
+    R -->|con contexto| W
+    B --> SV[save_memory]
+    W --> SV
+    SV --> O[Respuesta educativa con fuentes]
 ```
 
 Desde las tools:
 
 - `retrieve_context_tool` consulta MongoDB Atlas Vector Search.
 - `write_answer_tool` usa GitHub Models.
-- Las tools de memoria usan `data/memory/`.
+- `load_memory_tool` y `save_memory_tool` usan `data/memory/`.
+- `safety_check_tool` aplica reglas de seguridad financiera.
 
 El sistema usa:
 
@@ -41,19 +49,20 @@ El sistema usa:
 - MongoDB Atlas Vector Search para búsqueda semántica.
 - GitHub Models para embeddings y generación de respuestas.
 - LangChain para declarar herramientas del agente.
+- LangGraph para conectar nodos y rutas condicionales.
 - RAGAS para una evaluación básica.
 
 El cliente LLM propio (`GitHubModelsLLM`) se mantiene. LangChain se usa para definir tools, no para reemplazar el cliente de GitHub Models.
 
 ## Agente Ev2
 
-`TradingAgent` envuelve el RAG existente con una capa simple de agente.
+`TradingAgent` envuelve el RAG existente con una capa simple de agente basada en LangGraph.
 
 El agente:
 
 - ejecuta herramientas explícitas;
 - mantiene memoria de corto y largo plazo;
-- usa planificación simple;
+- conecta nodos mediante un grafo con rutas condicionales;
 - toma decisiones según seguridad, contexto y errores externos;
 - conserva el enfoque educativo del sistema.
 
@@ -84,13 +93,24 @@ La memoria local guarda datos mínimos:
 
 ### Planificación y decisiones
 
-El planner no usa LLM. Ejecuta un flujo fijo y fácil de revisar:
+El flujo ya no queda como una lista rígida de pasos. El agente usa un `StateGraph` con nodos pequeños:
 
-1. cargar memoria;
-2. validar seguridad;
-3. recuperar contexto;
-4. generar respuesta;
-5. guardar memoria.
+- `load_memory`;
+- `check_financial_safety`;
+- `blocked_response`;
+- `agent`;
+- `generate_query`;
+- `retrieve_context`;
+- `generate_answer`;
+- `save_memory`.
+
+Las rutas condicionales permiten:
+
+- bloquear sin consultar el RAG;
+- recuperar contexto si la consulta es segura;
+- responder falta de contexto si no hay chunks útiles;
+- manejar errores externos sin romper Streamlit;
+- guardar memoria al final del flujo.
 
 Rutas de decisión:
 
@@ -111,8 +131,9 @@ Rutas de decisión:
 ├── src/
 │   ├── agent/
 │   │   ├── agent.py        # TradingAgent
+│   │   ├── graph.py        # Grafo LangGraph
 │   │   ├── memory.py       # Memoria short-term y long-term
-│   │   ├── planner.py      # Planner simple
+│   │   ├── planner.py      # Descripción de rutas del grafo
 │   │   └── tools.py        # Tools declaradas con LangChain
 │   ├── config.py           # Configuración general
 │   ├── ingesta/
@@ -138,6 +159,19 @@ Rutas de decisión:
 
 Para iniciar el proyecto de manera correcta se recomienda leer el archivo llamado "COMO_EJECUTAR.md".
 
+Ejecución local con Streamlit:
+
+```powershell
+python -m streamlit run app.py
+```
+
+Ejecución con Docker:
+
+```powershell
+docker build -t navirag-trading .
+docker run --rm -p 8501:8501 --env-file .env navirag-trading
+```
+
 ## Evaluación
 
 El proyecto incluye una evaluación básica con RAGAS usando `eval/dataset.json`.
@@ -152,6 +186,18 @@ También se puede validar manualmente el agente con casos como:
 - pregunta de seguimiento;
 - pregunta sin contexto suficiente;
 - pregunta bloqueada por seguridad financiera.
+
+El archivo `eval/casos_ev2.json` resume casos exitosos y defectuosos esperados para revisar las rutas del agente.
+
+## Corrección V2
+
+La corrección responde a la retroalimentación docente con cambios acotados:
+
+- reemplaza el planner rígido por un grafo LangGraph;
+- separa nodos de seguridad, planificación, recuperación, generación y memoria;
+- agrega rutas de error controladas;
+- documenta casos exitosos y defectuosos;
+- mantiene Streamlit, MongoDB Atlas Vector Search y GitHub Models.
 
 ## Limitaciones
 

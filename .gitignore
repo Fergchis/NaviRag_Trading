@@ -24,6 +24,7 @@ data/memory/*
 referencias_clase/
 _referencias_clase/
 
-docs/
+docs/*
+!docs/flujo_langgraph_ev2.md
 
 *.log

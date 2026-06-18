@@ -2,58 +2,42 @@ from dataclasses import dataclass
 
 
 @dataclass
-class PlanStep:
-    name: str
-    tool: str
-    description: str
-    priority: int
-    status: str = "pending"
-    reason: str = ""
+class GraphRoute:
+    node: str
+    on_success: str | None = None
+    on_blocked: str | None = None
+    on_error: str | None = None
 
 
 class AgentPlanner:
-    def create_plan(self, query: str) -> list[PlanStep]:
+    def describe_graph(self) -> list[GraphRoute]:
         return [
-            PlanStep(
-                name="load_memory",
-                tool="load_memory_tool",
-                description="Cargar memoria de largo plazo para la sesion.",
-                priority=1,
+            GraphRoute(node="load_memory", on_success="check_financial_safety"),
+            GraphRoute(
+                node="check_financial_safety",
+                on_success="agent",
+                on_blocked="blocked_response",
             ),
-            PlanStep(
-                name="safety_check",
-                tool="safety_check_tool",
-                description="Validar si la pregunta pide recomendacion financiera o senales.",
-                priority=2,
+            GraphRoute(node="blocked_response", on_success="save_memory"),
+            GraphRoute(node="agent", on_success="generate_query"),
+            GraphRoute(node="generate_query", on_success="retrieve_context"),
+            GraphRoute(
+                node="retrieve_context",
+                on_success="generate_answer",
+                on_error="save_memory",
             ),
-            PlanStep(
-                name="retrieve_context",
-                tool="retrieve_context_tool",
-                description="Recuperar contexto semantico desde MongoDB Vector Search.",
-                priority=3,
-            ),
-            PlanStep(
-                name="write_answer",
-                tool="write_answer_tool",
-                description="Generar una respuesta educativa usando el contexto recuperado.",
-                priority=4,
-            ),
-            PlanStep(
-                name="save_memory",
-                tool="save_memory_tool",
-                description="Guardar datos minimos de continuidad de la sesion.",
-                priority=5,
-            ),
+            GraphRoute(node="generate_answer", on_success="save_memory"),
+            GraphRoute(node="save_memory"),
         ]
 
 
-def serialize_plan(plan: list[PlanStep]) -> list[dict]:
+def serialize_routes(routes: list[GraphRoute]) -> list[dict]:
     return [
         {
-            "step": step.name,
-            "tool": step.tool,
-            "status": step.status,
-            "reason": step.reason,
+            "node": route.node,
+            "on_success": route.on_success,
+            "on_blocked": route.on_blocked,
+            "on_error": route.on_error,
         }
-        for step in plan
+        for route in routes
     ]
