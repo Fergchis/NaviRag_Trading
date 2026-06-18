@@ -23,4 +23,7 @@ data/processed/
 data/vectorstore/
 data/memory/
 
+logs/*
+!logs/.gitkeep
+
 *.log

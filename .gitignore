@@ -29,6 +29,8 @@ docs/*
 !docs/flujo_langgraph_ev2.md
 docs/_archivo_pre_cierre_v2/
 
+eval/resultados_ev2.json
+
 *.log
 streamlit_stdout.log
 streamlit_stderr.log
