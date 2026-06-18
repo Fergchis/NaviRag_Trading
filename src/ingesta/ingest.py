@@ -2,20 +2,20 @@ from pathlib import Path
 
 from markitdown import MarkItDown
 
+from agent_app.utils.embeddings import GitHubModelsEmbeddings
+from agent_app.utils.mongodb import MongoDBClient
 from src.config import DATA_RAW_DIR
-from src.utils.embeddings import EmbeddingClient
-from src.utils.mongodb import MongoDBClient
 
 
 class PDFIngester:
     def __init__(self, db_name: str | None = None, collection_name: str | None = None):
-        self.embedder = EmbeddingClient()
+        self.embedder = GitHubModelsEmbeddings()
         self.mongo = MongoDBClient(db_name)
         self.collection = self.mongo.get_collection(collection_name)
         self.converter = MarkItDown()
 
     def scan_pdfs(self, directory: str) -> list[Path]:
-        return sorted(Path(directory).glob("*.pdf"))
+        return sorted(Path(directory).rglob("*.pdf"))
 
     def _convert_to_text(self, file_path: Path) -> str:
         result = self.converter.convert(str(file_path))
@@ -36,7 +36,7 @@ class PDFIngester:
         return chunks
 
     def _already_ingested(self, filename: str) -> bool:
-        return self.collection.count_documents({"metadata.file": filename}) > 0
+        return self.collection.count_documents({"metadata.filename": filename}) > 0
 
     def ingest_file(self, file_path: Path):
         if self._already_ingested(file_path.name):
@@ -48,18 +48,16 @@ class PDFIngester:
         chunks = self._split_text(text)
 
         documents = []
-        for i, chunk in enumerate(chunks, start=1):
+        for i, chunk in enumerate(chunks):
             embedding = self.embedder.get_embedding(chunk)
             documents.append({
-                "chunk_id": f"{file_path.stem}_{i}",
+                "chunk_id": i,
                 "text": chunk,
                 "embedding": embedding,
                 "metadata": {
-                    "file": file_path.name,
-                    "page": None,
-                    "section": "document",
-                    "page_chunk_index": i,
-                    "character_count": len(chunk),
+                    "source": str(file_path),
+                    "filename": file_path.name,
+                    "filetype": file_path.suffix.lower(),
                 },
             })
 

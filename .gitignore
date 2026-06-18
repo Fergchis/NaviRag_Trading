@@ -12,14 +12,9 @@ venv/
 data/raw/*
 !data/raw/.gitkeep
 
-data/processed/*
-!data/processed/.gitkeep
-
-data/vectorstore/*
-!data/vectorstore/.gitkeep
-
-data/memory/*
-!data/memory/.gitkeep
+data/processed/
+data/vectorstore/
+data/memory/
 
 referencias_clase/
 _referencias_clase/

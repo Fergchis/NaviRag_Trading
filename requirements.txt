@@ -6,9 +6,10 @@ pymongo>=4.7,<5.0
 dnspython>=2.6,<3.0
 ragas
 datasets
-pandas
 langsmith
+langchain-core
 langchain
 langchain-openai
 langgraph
+langmem
 openai

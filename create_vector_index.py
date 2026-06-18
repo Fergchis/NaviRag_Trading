@@ -1,6 +1,6 @@
 import os
 
-from src.utils.mongodb import MongoDBClient
+from agent_app.utils.mongodb import MongoDBClient
 
 mongo = MongoDBClient()
 collection = mongo.get_collection()

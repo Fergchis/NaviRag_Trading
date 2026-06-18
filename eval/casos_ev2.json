@@ -1,23 +1,149 @@
 [
   {
-    "id": "EV2-01",
-    "tipo": "exitoso_rag",
-    "pregunta": "Explica que es la volatilidad en trading.",
-    "ruta_esperada": "rag_answer",
-    "resultado_esperado": "Respuesta educativa basada en contexto recuperado desde los documentos."
+    "id": "EV2-F01",
+    "tipo": "funcional",
+    "pregunta": "Explica qué es la volatilidad en trading usando los documentos.",
+    "ruta_esperada": "rag_then_answer",
+    "agentes_esperados": ["rag_agent", "answer_agent"],
+    "tools_esperadas": ["rag_search"],
+    "respuesta_esperada": "Respuesta educativa basada en contexto documental y con referencia visible a una fuente.",
+    "retrieval_esperado": true,
+    "memoria_esperada": false,
+    "rechazo_financiero_esperado": false
   },
   {
-    "id": "EV2-02",
-    "tipo": "bloqueo_financiero",
-    "pregunta": "Deberia comprar Bitcoin hoy?",
-    "ruta_esperada": "blocked",
-    "resultado_esperado": "El agente bloquea la recomendacion financiera y no consulta el RAG."
+    "id": "EV2-F02",
+    "tipo": "funcional",
+    "pregunta": "Recupera y muéstrame los pasajes sobre gestión de riesgo.",
+    "ruta_esperada": "rag_agent",
+    "agentes_esperados": ["rag_agent"],
+    "tools_esperadas": ["rag_search"],
+    "respuesta_esperada": "Presenta contexto recuperado con etiquetas de fuente y metadatos.",
+    "retrieval_esperado": true,
+    "memoria_esperada": false,
+    "rechazo_financiero_esperado": false
   },
   {
-    "id": "EV2-03",
-    "tipo": "exitoso_rag",
-    "pregunta": "Que importancia tiene la gestion de riesgo en trading?",
-    "ruta_esperada": "rag_answer",
-    "resultado_esperado": "Respuesta educativa con fuentes recuperadas desde la base documental."
+    "id": "EV2-F03",
+    "tipo": "funcional",
+    "pregunta": "Recuerda que prefiero explicaciones breves y sin fórmulas.",
+    "ruta_esperada": "memory_agent",
+    "agentes_esperados": ["memory_agent"],
+    "tools_esperadas": ["manage_memory"],
+    "respuesta_esperada": "Confirma que la preferencia fue guardada o actualizada.",
+    "retrieval_esperado": false,
+    "memoria_esperada": true,
+    "rechazo_financiero_esperado": false
+  },
+  {
+    "id": "EV2-F04",
+    "tipo": "funcional",
+    "pregunta": "¿Qué tipo de explicaciones prefiero?",
+    "ruta_esperada": "memory_then_answer",
+    "agentes_esperados": ["memory_agent", "answer_agent"],
+    "tools_esperadas": ["search_memory"],
+    "respuesta_esperada": "Indica que el usuario prefiere explicaciones breves y sin fórmulas.",
+    "retrieval_esperado": false,
+    "memoria_esperada": true,
+    "rechazo_financiero_esperado": false
+  },
+  {
+    "id": "EV2-F05",
+    "tipo": "funcional",
+    "pregunta": "Explícame la gestión de riesgo respetando mis preferencias.",
+    "ruta_esperada": "memory_then_rag_then_answer",
+    "agentes_esperados": ["memory_agent", "rag_agent", "answer_agent"],
+    "tools_esperadas": ["search_memory", "rag_search"],
+    "respuesta_esperada": "Explicación breve, sin fórmulas, basada en documentos y con referencia visible.",
+    "retrieval_esperado": true,
+    "memoria_esperada": true,
+    "rechazo_financiero_esperado": false
+  },
+  {
+    "id": "EV2-F06",
+    "tipo": "funcional",
+    "pregunta": "Hola, ¿qué puedes hacer?",
+    "ruta_esperada": "answer_agent",
+    "agentes_esperados": ["answer_agent"],
+    "tools_esperadas": [],
+    "respuesta_esperada": "Explica brevemente que puede responder consultas educativas de trading.",
+    "retrieval_esperado": false,
+    "memoria_esperada": false,
+    "rechazo_financiero_esperado": false
+  },
+  {
+    "id": "EV2-F07",
+    "tipo": "funcional",
+    "pregunta": "¿Debería comprar Bitcoin hoy? Dame una señal concreta.",
+    "ruta_esperada": "answer_agent",
+    "agentes_esperados": ["answer_agent"],
+    "tools_esperadas": [],
+    "respuesta_esperada": "Rechaza la recomendación o señal accionable y ofrece solo orientación educativa.",
+    "retrieval_esperado": false,
+    "memoria_esperada": false,
+    "rechazo_financiero_esperado": true
+  },
+  {
+    "id": "EV2-F08",
+    "tipo": "funcional",
+    "pregunta": "¿Cómo preparo una masa de pizza?",
+    "ruta_esperada": "FINISH",
+    "agentes_esperados": [],
+    "tools_esperadas": [],
+    "respuesta_esperada": "Lo siento, pero este sistema solo atiende consultas educativas de trading.",
+    "retrieval_esperado": false,
+    "memoria_esperada": false,
+    "rechazo_financiero_esperado": false
+  },
+  {
+    "id": "EV2-F09",
+    "tipo": "funcional",
+    "pregunta": "¿Qué dicen los documentos sobre astrología para operaciones intradía?",
+    "ruta_esperada": "rag_then_answer",
+    "agentes_esperados": ["rag_agent", "answer_agent"],
+    "tools_esperadas": ["rag_search"],
+    "respuesta_esperada": "Declara que no existe contexto documental suficiente si los fragmentos no respaldan la consulta.",
+    "retrieval_esperado": true,
+    "memoria_esperada": false,
+    "rechazo_financiero_esperado": false
+  },
+  {
+    "id": "EV2-E01",
+    "tipo": "error_simulado",
+    "objetivo_error": "supervisor",
+    "excepcion_esperada": "RuntimeError"
+  },
+  {
+    "id": "EV2-E02",
+    "tipo": "error_simulado",
+    "objetivo_error": "rag_agent",
+    "ruta_simulada": "rag_agent",
+    "excepcion_esperada": "RuntimeError"
+  },
+  {
+    "id": "EV2-E03",
+    "tipo": "error_simulado",
+    "objetivo_error": "memory_agent",
+    "ruta_simulada": "memory_agent",
+    "excepcion_esperada": "RuntimeError"
+  },
+  {
+    "id": "EV2-E04",
+    "tipo": "error_simulado",
+    "objetivo_error": "answer_agent",
+    "ruta_simulada": "answer_agent",
+    "excepcion_esperada": "RuntimeError"
+  },
+  {
+    "id": "EV2-E05",
+    "tipo": "error_simulado",
+    "objetivo_error": "retrieval",
+    "excepcion_esperada": "RuntimeError"
+  },
+  {
+    "id": "EV2-E06",
+    "tipo": "error_simulado",
+    "objetivo_error": "semantic_store",
+    "excepcion_esperada": "RuntimeError"
   }
 ]
