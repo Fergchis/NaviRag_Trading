@@ -29,8 +29,8 @@
     "pregunta": "Recuerda que prefiero explicaciones breves y sin fórmulas.",
     "ruta_esperada": "memory_agent",
     "agentes_esperados": ["memory_agent"],
-    "tools_esperadas": ["manage_memory"],
-    "respuesta_esperada": "Confirma que la preferencia fue guardada o actualizada.",
+    "tools_esperadas": ["save_memory"],
+    "respuesta_esperada": "Confirma que la preferencia fue guardada.",
     "retrieval_esperado": false,
     "memoria_esperada": true,
     "rechazo_financiero_esperado": false
@@ -41,7 +41,7 @@
     "pregunta": "¿Qué tipo de explicaciones prefiero?",
     "ruta_esperada": "memory_then_answer",
     "agentes_esperados": ["memory_agent", "answer_agent"],
-    "tools_esperadas": ["search_memory"],
+    "tools_esperadas": [],
     "respuesta_esperada": "Indica que el usuario prefiere explicaciones breves y sin fórmulas.",
     "retrieval_esperado": false,
     "memoria_esperada": true,
@@ -53,7 +53,7 @@
     "pregunta": "Explícame la gestión de riesgo respetando mis preferencias.",
     "ruta_esperada": "memory_then_rag_then_answer",
     "agentes_esperados": ["memory_agent", "rag_agent", "answer_agent"],
-    "tools_esperadas": ["search_memory", "rag_search"],
+    "tools_esperadas": ["rag_search"],
     "respuesta_esperada": "Explicación breve, sin fórmulas, basada en documentos y con referencia visible.",
     "retrieval_esperado": true,
     "memoria_esperada": true,
@@ -129,12 +129,14 @@
   {
     "id": "EV2-E01",
     "tipo": "error_simulado",
+    "descripcion": "Error inyectado en el supervisor.",
     "objetivo_error": "supervisor",
     "excepcion_esperada": "RuntimeError"
   },
   {
     "id": "EV2-E02",
     "tipo": "error_simulado",
+    "descripcion": "Error inyectado en el agente RAG.",
     "objetivo_error": "rag_agent",
     "ruta_simulada": "rag_agent",
     "excepcion_esperada": "RuntimeError"
@@ -142,6 +144,7 @@
   {
     "id": "EV2-E03",
     "tipo": "error_simulado",
+    "descripcion": "Error inyectado en el agente de memoria.",
     "objetivo_error": "memory_agent",
     "ruta_simulada": "memory_agent",
     "excepcion_esperada": "RuntimeError"
@@ -149,6 +152,7 @@
   {
     "id": "EV2-E04",
     "tipo": "error_simulado",
+    "descripcion": "Error inyectado en el agente de respuesta.",
     "objetivo_error": "answer_agent",
     "ruta_simulada": "answer_agent",
     "excepcion_esperada": "RuntimeError"
@@ -156,12 +160,14 @@
   {
     "id": "EV2-E05",
     "tipo": "error_simulado",
+    "descripcion": "Error inyectado en la recuperación documental.",
     "objetivo_error": "retrieval",
     "excepcion_esperada": "RuntimeError"
   },
   {
     "id": "EV2-E06",
     "tipo": "error_simulado",
+    "descripcion": "Error inyectado en el store semántico.",
     "objetivo_error": "semantic_store",
     "excepcion_esperada": "RuntimeError"
   }

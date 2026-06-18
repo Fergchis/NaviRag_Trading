@@ -218,8 +218,6 @@ El objeto exportado es `graph`, resultado de compilar el `StateGraph` principal 
 | `EV2-F09` | Falta de contexto documental sin invención de contenido. |
 | `EV2-ST01` | Continuidad short-term con el mismo `thread_id`. |
 
-Los campos `tools_esperadas` de los casos de memoria conservan nombres anteriores a la eliminación de LangMem. Por esa diferencia, este documento no presenta el runner actual como evidencia ejecutada ni afirma resultados PASS.
-
 ## 12. Errores inyectados
 
 El runner define seis casos que inyectan una `RuntimeError` mediante mocks:
