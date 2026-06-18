@@ -1,19 +1,28 @@
-# LangGraph — Flujo activo de NaviRAG Trading V2
+# LangGraph — Arquitectura técnica de NaviRAG Trading V2
 
-## Estructura
+## 1. Objetivo
 
-La V2 usa dos niveles de orquestación:
+NaviRAG Trading es un agente educativo que responde consultas sobre documentos de trading. La aplicación combina:
 
-1. Un grafo principal con un supervisor y tres agentes especializados.
-2. Un subgrafo RAG donde el modelo decide una llamada a tool, `ToolNode` la ejecuta y el resultado vuelve al modelo.
+- una interfaz de chat en Streamlit;
+- un supervisor que selecciona el recorrido;
+- un subgrafo RAG para recuperar contexto desde MongoDB Atlas;
+- memoria short-term y long-term;
+- un agente final que redacta respuestas educativas y aplica el rechazo financiero seguro.
 
-El estado compartido contiene los mensajes, la ruta seleccionada y diagnósticos del turno. `add_messages` conserva el historial conversacional y `MemorySaver` lo separa por `thread_id`.
+La implementación sigue el patrón de clase: estado compartido, nodos con responsabilidades acotadas, edges fijos, edges condicionales y tools explícitas con `@tool`.
 
-## Grafo principal
+## 2. Arquitectura general
+
+La V2 contiene dos niveles de orquestación:
+
+1. Un grafo principal con supervisor y tres agentes especializados.
+2. Un subgrafo RAG que reformula la consulta, ejecuta `rag_search` y devuelve el resultado al modelo.
 
 ```mermaid
 flowchart TD
-    START --> S[supervisor_node]
+    U[Usuario] --> UI[Streamlit]
+    UI --> S[supervisor_node]
 
     S -->|rag_agent| R[rag_agent]
     S -->|rag_then_answer| R
@@ -21,73 +30,227 @@ flowchart TD
     S -->|memory_then_answer| M
     S -->|memory_then_rag_then_answer| M
     S -->|answer_agent| A[answer_agent]
-    S -->|FINISH| END
+    S -->|FINISH| E[END]
 
-    M -->|memory_agent| END
+    M -->|memory_agent| E
     M -->|memory_then_answer| A
     M -->|memory_then_rag_then_answer| R
 
-    R -->|rag_agent| END
+    R -->|rag_agent| E
     R -->|rag_then_answer| A
     R -->|memory_then_rag_then_answer| A
 
-    A --> END
+    A --> E
 ```
 
-## Responsabilidades de los nodos
+No existe un planner lineal separado. La planificación se expresa mediante la salida estructurada `Route` del supervisor y los edges condicionales.
 
-| Nodo | Responsabilidad |
+## 3. Estado compartido
+
+`AgentState` usa `add_messages` para acumular mensajes y contiene los siguientes datos:
+
+| Campo | Uso |
 |---|---|
-| `supervisor_node` | Usa `SUPERVISOR_SYSTEM_PROMPT` y la salida estructurada `Route` para elegir el recorrido. Reinicia únicamente los diagnósticos del turno. |
-| `rag_agent` | Recupera contexto documental y conserva fuentes. Internamente usa el subgrafo RAG. |
-| `memory_agent` | Ejecuta `manage_memory` o `search_memory` según la tarea delegada. |
-| `answer_agent` | Redacta la respuesta final usando el contexto y las memorias disponibles. También aplica el rechazo financiero seguro. |
+| `messages` | Historial compartido entre nodos. |
+| `user_query` | Consulta original del turno. |
+| `next` | Ruta seleccionada por el supervisor. |
+| `executed_agents` | Agentes ejecutados durante el turno. |
+| `final_agent` | Último agente que produjo una salida. |
+| `retrieval_used` | Indica uso de recuperación documental. |
+| `memory_used` | Indica uso de memoria. |
+| `financial_rejection` | Indica rechazo de una solicitud financiera accionable. |
+| `retrieved_context` | Contexto y fuentes recuperadas por RAG. |
 
-Antes de delegar, `summarize_for` prepara una instrucción acotada para el agente especializado. No existe una secuencia fija que ejecute todos los agentes.
+Los campos de diagnóstico se reinician al entrar en `supervisor_node`. Los mensajes conservados por el checkpointer y las memorias del store no se eliminan al iniciar un turno nuevo.
 
-## Subgrafo RAG
+## 4. Nodos del grafo principal
 
-```mermaid
-flowchart TD
-    RM[rag_model] -->|rag_search tool_call| Q[generate_query]
-    RM -->|sin tool_calls| END
-    Q --> T[ToolNode: rag_search]
-    T --> RM
-```
-
-1. `rag_model` usa `bind_tools` con `rag_search`.
-2. Si el modelo solicita la tool, `generate_query` reformula la consulta.
-3. `ToolNode` ejecuta `rag_search` contra MongoDB Atlas Vector Search.
-4. El resultado vuelve a `rag_model`, que resume el contexto con etiquetas `[FUENTE N]`.
-
-## Tools
-
-| Tool | Agente | Efecto |
+| Nodo | Función | Responsabilidad |
 |---|---|---|
-| `rag_search` | `rag_agent` | Consulta fragmentos y metadatos documentales. |
-| `manage_memory` | `memory_agent` | Crea, actualiza o elimina una memoria solicitada. |
-| `search_memory` | `memory_agent` | Busca recuerdos del mismo `user_id`. |
+| `supervisor` | `supervisor_node` | Usa `SUPERVISOR_SYSTEM_PROMPT` y `with_structured_output(Route)` para seleccionar la ruta. |
+| `rag_agent` | `rag_node` | Resume la tarea, invoca el subgrafo RAG, recoge `ToolMessage` y conserva fuentes. |
+| `memory_agent` | `memory_node` | Guarda una memoria mediante `save_memory` o recupera memorias directamente desde `InMemoryStore`. |
+| `answer_agent` | `answer_node` | Redacta la respuesta final usando el contexto disponible y aplica seguridad financiera. |
 
-## Memoria
+Antes de delegar una tarea de RAG, memoria escrita o respuesta final, `summarize_for` genera una instrucción acotada para el agente correspondiente.
 
-- `MemorySaver`: memoria conversacional short-term por `thread_id`.
-- `InMemoryStore`: memoria semántica compartida entre hilos, separada por `user_id`.
-- `create_manage_memory_tool` y `create_search_memory_tool`: acceso del agente al store.
+## 5. Edges y rutas condicionales
 
-El store es long-term respecto de conversaciones diferentes dentro del mismo proceso, pero no es persistente después de reiniciar la aplicación.
+### Edges del grafo principal
 
-## Rutas reales
+| Origen | Tipo | Destino o decisión |
+|---|---|---|
+| `START` | Fijo | `supervisor` |
+| `supervisor` | Condicional | `rag_agent`, `memory_agent`, `answer_agent` o `END` |
+| `memory_agent` | Condicional | `answer_agent`, `rag_agent` o `END` |
+| `rag_agent` | Condicional | `answer_agent` o `END` |
+| `answer_agent` | Fijo | `END` |
+
+### Rutas disponibles
 
 | Ruta | Recorrido |
 |---|---|
 | `rag_agent` | supervisor → RAG → fin |
-| `memory_agent` | supervisor → memoria → fin |
+| `memory_agent` | supervisor → memoria escrita → fin |
 | `answer_agent` | supervisor → respuesta → fin |
 | `rag_then_answer` | supervisor → RAG → respuesta → fin |
-| `memory_then_answer` | supervisor → memoria → respuesta → fin |
-| `memory_then_rag_then_answer` | supervisor → memoria → RAG → respuesta → fin |
-| `FINISH` | supervisor → fin |
+| `memory_then_answer` | supervisor → lectura de memoria → respuesta → fin |
+| `memory_then_rag_then_answer` | supervisor → lectura de memoria → RAG → respuesta → fin |
+| `FINISH` | supervisor → fin con respuesta fuera de dominio |
 
-## Diagnósticos por turno
+`supervisor_route`, `after_memory_route` y `after_rag_route` implementan estas decisiones.
 
-Al entrar en `supervisor_node` se reinician `executed_agents`, `final_agent`, `retrieval_used`, `memory_used` y `retrieved_context`. Esto evita mezclar diagnósticos de turnos anteriores sin borrar los mensajes del checkpointer ni las memorias del store.
+## 6. Subgrafo RAG
+
+```mermaid
+flowchart TD
+    RM[rag_model] -->|tool_call rag_search| Q[generate_query]
+    RM -->|sin tool_calls| E[END]
+    Q --> T[ToolNode: rag_search]
+    T --> RM
+```
+
+Flujo:
+
+1. `rag_model` usa el modelo enlazado con `bind_tools(rag_tools)`.
+2. Si solicita `rag_search`, `should_continue_rag` dirige a `generate_query`.
+3. `generate_query` reformula la conversación como consulta semántica y reemplaza el argumento de la tool.
+4. `ToolNode` ejecuta `rag_search`.
+5. El resultado vuelve a `rag_model`.
+6. El modelo finaliza conservando etiquetas `[FUENTE N]`, archivo, source, chunk y score.
+
+Edges internos:
+
+- entrada → `rag_model`;
+- `rag_model` → `generate_query` o `END`;
+- `generate_query` → `tools`;
+- `tools` → `rag_model`.
+
+## 7. Tools
+
+Las tools públicas siguen el patrón del profesor: funciones pequeñas, argumentos tipados, docstring y decorador `@tool` en `agent_app/tools.py`.
+
+| Tool | Agente | Responsabilidad |
+|---|---|---|
+| `rag_search(query)` | `rag_agent` | Genera el embedding, ejecuta MongoDB Atlas Vector Search y devuelve fragmentos con metadatos. |
+| `save_memory(memory)` | `memory_agent` | Guarda información útil y estable bajo el namespace del `user_id`. |
+
+`save_memory` recibe el `InMemoryStore` mediante `InjectedStore`, crea un UUID y guarda un valor con la forma `{"memory": ...}`. No modifica MongoDB ni reemplaza el flujo RAG.
+
+La lectura long-term no es una tool pública. `search_long_term_memory` es un helper interno de `agent.py` que consulta el mismo store con la consulta del usuario y un límite de cinco resultados.
+
+No se implementan operaciones de update o delete en esta versión.
+
+## 8. Memoria
+
+### Short-term: `MemorySaver`
+
+El grafo principal se compila con `MemorySaver`. Streamlit envía `thread_id` dentro de `configurable`, por lo que los mensajes de una conversación mantienen continuidad dentro del mismo hilo.
+
+### Long-term: `InMemoryStore`
+
+El store se crea con el cliente de embeddings de GitHub Models y se entrega al agente de memoria y al grafo compilado. Las memorias usan el namespace:
+
+```text
+("agent_memories", user_id)
+```
+
+Streamlit conserva `user_id` al iniciar una conversación nueva. Esto permite recuperar memorias entre hilos mientras el proceso siga activo.
+
+`InMemoryStore` no ofrece persistencia durable: su contenido se pierde al reiniciar el proceso.
+
+### Eliminación de LangMem
+
+LangMem fue retirado del runtime y de `requirements.txt`. Su API genérica de administración se sustituyó por la implementación mínima necesaria:
+
+- tool explícita `save_memory` para escritura;
+- helper interno `search_long_term_memory` para lectura;
+- `MemorySaver` e `InMemoryStore` se mantienen.
+
+El motivo técnico es mantener tools explícitas y de responsabilidad acotada, como en los ejemplos del profesor, sin replicar operaciones de update/delete que no forman parte de esta fase.
+
+## 9. Configuración `langgraph.json`
+
+La raíz del repositorio contiene:
+
+```json
+{
+  "dependencies": ["."],
+  "graphs": {
+    "agent": "./agent_app/agent.py:graph"
+  },
+  "env": ".env"
+}
+```
+
+La ruta confirmada del grafo es:
+
+```text
+./agent_app/agent.py:graph
+```
+
+El objeto exportado es `graph`, resultado de compilar el `StateGraph` principal con `MemorySaver` e `InMemoryStore`.
+
+## 10. Flujo Streamlit
+
+1. Streamlit crea y conserva `thread_id`, `user_id` y el historial visible.
+2. El usuario envía una consulta mediante `st.chat_input`.
+3. `app.py` llama a `graph.invoke` con el mensaje y ambos identificadores.
+4. El supervisor selecciona la ruta.
+5. Los nodos ejecutados actualizan mensajes y diagnósticos.
+6. Streamlit muestra la respuesta final.
+7. Ruta, agentes, retrieval, memoria y fuentes quedan disponibles dentro del expander `Detalles técnicos`.
+8. El manejo de errores presenta un mensaje específico para rate limits y uno general para errores de configuración o ejecución.
+
+## 11. Casos funcionales definidos
+
+`eval/casos_ev2.json` contiene casos cuyo resultado esperado es exitoso. No se afirma que hayan sido ejecutados en esta documentación.
+
+| Casos | Evidencia que buscan demostrar |
+|---|---|
+| `EV2-F01`, `EV2-F02` | Recuperación documental, fuentes y rutas RAG. |
+| `EV2-F03` | Escritura de una preferencia en memoria long-term. |
+| `EV2-F04` | Recuperación de una preferencia guardada. |
+| `EV2-F05` | Combinación de memoria, RAG y respuesta final. |
+| `EV2-F06` | Respuesta directa sin retrieval. |
+| `EV2-F07` | Rechazo financiero seguro. |
+| `EV2-F08` | Salida controlada para una consulta fuera de dominio. |
+| `EV2-F09` | Falta de contexto documental sin invención de contenido. |
+| `EV2-ST01` | Continuidad short-term con el mismo `thread_id`. |
+
+Los campos `tools_esperadas` de los casos de memoria conservan nombres anteriores a la eliminación de LangMem. Por esa diferencia, este documento no presenta el runner actual como evidencia ejecutada ni afirma resultados PASS.
+
+## 12. Errores inyectados
+
+El runner define seis casos que inyectan una `RuntimeError` mediante mocks:
+
+| Caso | Punto de inyección |
+|---|---|
+| `EV2-E01` | Supervisor. |
+| `EV2-E02` | Agente RAG. |
+| `EV2-E03` | Agente de memoria. |
+| `EV2-E04` | Agente de respuesta. |
+| `EV2-E05` | Recuperación MongoDB. |
+| `EV2-E06` | Store semántico. |
+
+Estos casos verifican que el runner detecta y registra el error inyectado. No demuestran recuperación automática del servicio afectado. No se afirman resultados ejecutados ni screenshots existentes.
+
+## 13. Matriz pauta EV2 → evidencia del repositorio
+
+| Criterio EV2 | Evidencia | Archivo |
+|---|---|---|
+| Herramienta de consulta | `rag_search` con MongoDB Atlas Vector Search. | `agent_app/tools.py` |
+| Herramienta de escritura | `save_memory` sobre `InMemoryStore`. | `agent_app/tools.py` |
+| Razonamiento y coordinación | Supervisor estructurado, reformulación y agente de respuesta. | `agent_app/agent.py`, `agent_app/prompts.py` |
+| Memoria short-term | `MemorySaver` asociado a `thread_id`. | `agent_app/agent.py`, `app.py` |
+| Memoria long-term | `InMemoryStore`, namespace por `user_id` y helper de búsqueda. | `agent_app/agent.py`, `agent_app/tools.py` |
+| Recuperación de contexto | Embeddings, `$vectorSearch`, metadatos y fuentes. | `agent_app/tools.py`, `agent_app/utils/embeddings.py` |
+| Planificación | Rutas directas y compuestas seleccionadas por `Route`. | `agent_app/agent.py` |
+| Decisión adaptativa | `add_conditional_edges` y funciones de routing. | `agent_app/agent.py` |
+| Arquitectura y diagrama | Diagramas del grafo principal y subgrafo RAG. | `README.md`, `docs/flujo_langgraph_ev2.md` |
+| Configuración del grafo | Ruta `./agent_app/agent.py:graph`. | `langgraph.json` |
+| Casos funcionales | Casos RAG, memoria, seguridad, dominio y continuidad. | `eval/casos_ev2.json` |
+| Errores inyectados | Casos de supervisor, agentes, retrieval y store. | `eval/casos_ev2.json`, `eval/run_casos_ev2.py` |
+| Diagnóstico del flujo | Ruta, agentes, retrieval, memoria y contexto recuperado. | `app.py` |
+
+La matriz identifica evidencia presente en el repositorio. No constituye una calificación ni una afirmación de ejecución exitosa.
