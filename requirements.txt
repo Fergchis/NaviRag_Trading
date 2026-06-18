@@ -11,5 +11,4 @@ langchain-core
 langchain
 langchain-openai
 langgraph
-langmem
 openai

@@ -10,7 +10,6 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, create_react_agent
 from langgraph.store.memory import InMemoryStore
-from langmem import create_manage_memory_tool, create_search_memory_tool
 from pydantic import BaseModel
 
 from agent_app.prompts import (
@@ -20,7 +19,7 @@ from agent_app.prompts import (
     RAG_AGENT_SYSTEM_PROMPT,
     SUPERVISOR_SYSTEM_PROMPT,
 )
-from agent_app.tools import rag_tools
+from agent_app.tools import MEMORY_NAMESPACE, memory_tools, rag_tools
 from agent_app.utils.embeddings import GitHubModelsEmbeddings
 
 load_dotenv()
@@ -75,11 +74,6 @@ query_llm = get_chat_model()
 
 github_embeddings = GitHubModelsEmbeddings()
 store = InMemoryStore(index={"dims": 1536, "embed": github_embeddings})
-namespace = ("agent_memories", "{user_id}")
-memory_tools = [
-    create_manage_memory_tool(namespace),
-    create_search_memory_tool(namespace),
-]
 
 memory_agent = create_react_agent(
     llm,
@@ -163,16 +157,10 @@ def summarize_for(messages: list, role: str, user_query: str) -> HumanMessage:
             "original. Ignora como tema de búsqueda las instrucciones operativas y los "
             "mensajes internos de memoria. Solo describe la tarea de recuperación."
         ),
-        "memory_manage": (
-            "Resume qué recuerdo debe guardarse, actualizarse o eliminarse. La tarea "
-            "delegada debe exigir llamar a manage_memory. Si el usuario comunica una "
-            "preferencia nueva y no hay un UUID de memoria en la conversación, indica "
-            "explícitamente action=create y que se omita id. Solo permite action=update "
-            "o action=delete cuando exista un UUID concreto de una memoria previa."
-        ),
-        "memory_search": (
-            "Resume qué preferencias o recuerdos deben buscarse para responder la consulta "
-            "original. La tarea delegada debe exigir llamar a search_memory."
+        "memory_save": (
+            "Resume qué información útil y estable del usuario debe guardarse. La tarea "
+            "delegada debe exigir llamar exactamente una vez a save_memory. No agregues "
+            "información que el usuario no haya comunicado."
         ),
         "answer": (
             "Prepara la tarea de respuesta a la consulta original. Incluye únicamente los "
@@ -251,18 +239,49 @@ def rag_node(state: AgentState, config: RunnableConfig) -> dict:
     }
 
 
-def memory_node(state: AgentState, config: RunnableConfig) -> dict:
-    role = "memory_manage" if state["next"] == "memory_agent" else "memory_search"
-    summary = summarize_for(state["messages"], role, state["user_query"])
-    result = memory_agent.invoke({"messages": [summary]}, config)
-    messages = result["messages"]
-    memory_tool_names = {"manage_memory", "search_memory"}
-    memory_used = any(
-        call["name"] in memory_tool_names
-        for message in messages
-        if isinstance(message, AIMessage)
-        for call in message.tool_calls
+def search_long_term_memory(query: str, config: RunnableConfig) -> list[str]:
+    user_id = config.get("configurable", {}).get("user_id")
+    if not user_id:
+        return []
+
+    results = store.search(
+        (MEMORY_NAMESPACE, str(user_id)),
+        query=query,
+        limit=5,
     )
+    memories = []
+    for item in results:
+        value = item.value
+        if isinstance(value, dict):
+            memory = value.get("memory")
+        else:
+            memory = value
+        if memory:
+            memories.append(str(memory))
+    return memories
+
+
+def memory_node(state: AgentState, config: RunnableConfig) -> dict:
+    if state["next"] == "memory_agent":
+        summary = summarize_for(state["messages"], "memory_save", state["user_query"])
+        result = memory_agent.invoke({"messages": [summary]}, config)
+        messages = result["messages"]
+        memory_used = any(
+            call["name"] == "save_memory"
+            for message in messages
+            if isinstance(message, AIMessage)
+            for call in message.tool_calls
+        )
+    else:
+        memories = search_long_term_memory(state["user_query"], config)
+        content = (
+            "Memorias long-term recuperadas:\n- " + "\n- ".join(memories)
+            if memories
+            else "No se encontraron memorias long-term relevantes para esta consulta."
+        )
+        messages = [AIMessage(content=content)]
+        memory_used = True
+
     return {
         "messages": messages,
         "executed_agents": _append_agent(state, "memory_agent"),

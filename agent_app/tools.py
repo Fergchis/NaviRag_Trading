@@ -1,7 +1,12 @@
 import os
+import uuid
+from typing import Annotated
 
 from dotenv import load_dotenv
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
+from langgraph.prebuilt import InjectedStore
+from langgraph.store.base import BaseStore
 from langsmith import traceable
 from pymongo import MongoClient
 
@@ -14,6 +19,7 @@ mongo_client = MongoClient(os.getenv("MONGODB_CONNECTION_STRING"))
 collection = mongo_client[
     os.getenv("MONGODB_DATABASE", "navirag")
 ][os.getenv("MONGODB_COLLECTION", "embeddings")]
+MEMORY_NAMESPACE = "agent_memories"
 
 
 @traceable(name="retrieve")
@@ -73,4 +79,25 @@ def rag_search(query: str) -> str:
     return format_retrieved_documents(documents)
 
 
+@tool
+def save_memory(
+    memory: str,
+    config: RunnableConfig,
+    store: Annotated[BaseStore, InjectedStore()],
+) -> str:
+    """Guarda información útil y estable del usuario en la memoria long-term."""
+    user_id = config.get("configurable", {}).get("user_id")
+    if not user_id:
+        return "No se pudo guardar la memoria porque falta user_id."
+
+    memory_id = str(uuid.uuid4())
+    store.put(
+        (MEMORY_NAMESPACE, str(user_id)),
+        memory_id,
+        {"memory": memory},
+    )
+    return f"Memoria guardada correctamente con id {memory_id}."
+
+
 rag_tools = [rag_search]
+memory_tools = [save_memory]
