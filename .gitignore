@@ -4,6 +4,7 @@
 
 __pycache__/
 *.pyc
+*.pyo
 
 .venv/
 venv/
@@ -11,17 +12,23 @@ venv/
 
 data/raw/*
 !data/raw/.gitkeep
+data/memory/*
+!data/memory/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+data/vectorstore/*
+!data/vectorstore/.gitkeep
 
-data/processed/
-data/vectorstore/
-data/memory/
+logs/*
+!logs/.gitkeep
 
 referencias_clase/
 _referencias_clase/
 
 docs/*
 !docs/flujo_langgraph_ev2.md
-!docs/_archivo_pre_cierre_v2/
-!docs/_archivo_pre_cierre_v2/**
+docs/_archivo_pre_cierre_v2/
 
 *.log
+streamlit_stdout.log
+streamlit_stderr.log
