@@ -26,22 +26,16 @@ flowchart TD
     G --> M[load_memory]
     M --> F[check_financial_safety]
     F -->|bloquea| B[blocked_response]
-    F -->|permite| P[agent]
-    P --> Q[generate_query]
-    Q --> R[retrieve_context]
-    R -->|sin contexto| W[generate_answer]
-    R -->|con contexto| W
+    F -->|permite| P[agent LLM con bind_tools]
+    P -->|tool_calls| Q[generate_query con LLM]
+    Q --> R[ToolNode: rag_search]
+    R --> P
     B --> SV[save_memory]
-    W --> SV
+    P -->|respuesta final| SV
     SV --> O[Respuesta educativa con fuentes]
 ```
 
-Desde las tools:
-
-- `retrieve_context_tool` consulta MongoDB Atlas Vector Search.
-- `write_answer_tool` usa GitHub Models.
-- `load_memory_tool` y `save_memory_tool` usan `data/memory/`.
-- `safety_check_tool` aplica reglas de seguridad financiera.
+La tool declarativa `rag_search` consulta MongoDB Atlas Vector Search. El nodo `agent` usa GitHub Models mediante `ChatOpenAI.bind_tools`, decide la llamada y recibe el resultado desde `ToolNode` antes de responder.
 
 El sistema usa:
 
@@ -52,7 +46,7 @@ El sistema usa:
 - LangGraph para conectar nodos y rutas condicionales.
 - RAGAS para una evaluación básica.
 
-El cliente LLM propio (`GitHubModelsLLM`) se mantiene. LangChain se usa para definir tools, no para reemplazar el cliente de GitHub Models.
+El cliente LLM propio (`GitHubModelsLLM`) se mantiene para el RAG tradicional. El grafo usa un cliente `ChatOpenAI` configurado con GitHub Models para soportar `bind_tools` y `tool_calls`.
 
 ## Agente Ev2
 
@@ -62,19 +56,19 @@ El agente:
 
 - ejecuta herramientas explícitas;
 - mantiene memoria de corto y largo plazo;
-- conecta nodos mediante un grafo con rutas condicionales;
-- toma decisiones según seguridad, contexto y errores externos;
+- usa un LLM con tools enlazadas para decidir la búsqueda;
+- ejecuta las tools mediante `ToolNode`;
+- enruta según los `tool_calls` producidos por el modelo;
+- reformula la consulta mediante un prompt y un LLM;
 - conserva el enfoque educativo del sistema.
 
 ### Herramientas
 
 | Tool | Función |
 |---|---|
-| `load_memory_tool` | Carga memoria local de la sesión. |
-| `safety_check_tool` | Valida si la pregunta pide recomendaciones financieras o señales. |
-| `retrieve_context_tool` | Recupera chunks desde MongoDB Atlas Vector Search. |
-| `write_answer_tool` | Genera una respuesta usando chunks ya recuperados. |
-| `save_memory_tool` | Guarda datos mínimos de continuidad de sesión. |
+| `rag_search` | Recupera contexto y fuentes desde MongoDB Atlas Vector Search. |
+
+Safety y memoria permanecen como nodos explícitos del grafo; no se presentan como tools del LLM.
 
 ### Memoria
 
@@ -93,23 +87,22 @@ La memoria local guarda datos mínimos:
 
 ### Planificación y decisiones
 
-El flujo ya no queda como una lista rígida de pasos. El agente usa un `StateGraph` con nodos pequeños:
+El flujo ya no queda como una lista rígida de pasos. El agente usa `bind_tools`, `ToolNode` y un `StateGraph` con nodos pequeños:
 
 - `load_memory`;
 - `check_financial_safety`;
 - `blocked_response`;
 - `agent`;
 - `generate_query`;
-- `retrieve_context`;
-- `generate_answer`;
+- `tools`;
 - `save_memory`.
 
 Las rutas condicionales permiten:
 
 - bloquear sin consultar el RAG;
-- recuperar contexto si la consulta es segura;
+- permitir que el LLM seleccione `rag_search`;
+- reformular la consulta antes de recuperar contexto;
 - responder falta de contexto si no hay chunks útiles;
-- manejar errores externos sin romper Streamlit;
 - guardar memoria al final del flujo.
 
 Rutas de decisión:
@@ -117,8 +110,6 @@ Rutas de decisión:
 - `blocked`: la pregunta pide recomendación financiera, señal o instrucción de inversión.
 - `insufficient_context`: no hay chunks recuperados o no tienen texto útil.
 - `rag_answer`: se genera una respuesta educativa con contexto recuperado.
-- `retrieval_error`: falla la recuperación desde la base de documentos.
-- `generation_error`: falla la generación del LLM.
 
 ## Estructura del proyecto
 
@@ -131,10 +122,9 @@ Rutas de decisión:
 ├── src/
 │   ├── agent/
 │   │   ├── agent.py        # TradingAgent
-│   │   ├── graph.py        # Grafo LangGraph
+│   │   ├── graph.py        # Grafo con bind_tools y ToolNode
 │   │   ├── memory.py       # Memoria short-term y long-term
-│   │   ├── planner.py      # Descripción de rutas del grafo
-│   │   └── tools.py        # Tools declaradas con LangChain
+│   │   └── tools.py        # Tool rag_search declarada con LangChain
 │   ├── config.py           # Configuración general
 │   ├── ingesta/
 │   │   └── ingest.py       # Ingesta de PDFs
@@ -149,7 +139,9 @@ Rutas de decisión:
 │       └── safety.py       # Seguridad financiera básica
 ├── eval/
 │   ├── dataset.json        # Dataset de evaluación
-│   └── evaluate.py         # Evaluación con RAGAS
+│   ├── evaluate.py         # Evaluación con RAGAS
+│   ├── casos_ev2.json      # Casos ejecutables del agente
+│   └── run_casos_ev2.py    # Validador de rutas EV2
 └── data/
     ├── raw/                # PDFs locales
     └── memory/             # Memoria local ignorada por Git
@@ -187,16 +179,20 @@ También se puede validar manualmente el agente con casos como:
 - pregunta sin contexto suficiente;
 - pregunta bloqueada por seguridad financiera.
 
-El archivo `eval/casos_ev2.json` resume casos exitosos y defectuosos esperados para revisar las rutas del agente.
+El archivo `eval/casos_ev2.json` contiene casos exitosos y defectuosos ejecutables:
+
+```bash
+python eval/run_casos_ev2.py
+```
 
 ## Corrección V2
 
 La corrección responde a la retroalimentación docente con cambios acotados:
 
-- reemplaza el planner rígido por un grafo LangGraph;
-- separa nodos de seguridad, planificación, recuperación, generación y memoria;
-- agrega rutas de error controladas;
-- documenta casos exitosos y defectuosos;
+- reemplaza el planner rígido por un agente LLM con `bind_tools`;
+- usa `ToolNode` y routing basado en `tool_calls`;
+- reformula la query con un prompt y un LLM;
+- ejecuta casos exitosos y defectuosos desde consola;
 - mantiene Streamlit, MongoDB Atlas Vector Search y GitHub Models.
 
 ## Limitaciones

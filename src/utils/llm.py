@@ -2,8 +2,24 @@ import os
 
 import requests
 from dotenv import load_dotenv
+from langchain_openai import ChatOpenAI
 
 load_dotenv()
+
+
+def get_chat_model() -> ChatOpenAI:
+    """Build a LangChain chat model against the GitHub Models endpoint."""
+    endpoint = os.getenv(
+        "GITHUB_MODELS_CHAT_ENDPOINT",
+        "https://models.github.ai/inference/chat/completions",
+    )
+    base_url = endpoint.removesuffix("/chat/completions").rstrip("/")
+    return ChatOpenAI(
+        api_key=os.getenv("GITHUB_TOKEN"),
+        base_url=base_url,
+        model=os.getenv("GITHUB_CHAT_MODEL", "openai/gpt-4o-mini"),
+        temperature=0,
+    )
 
 
 class GitHubModelsLLM:

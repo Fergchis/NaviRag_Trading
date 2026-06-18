@@ -172,3 +172,19 @@ Luego abrir en el navegador:
 http://localhost:8501
 ```
 
+## 9. Ejecutar casos EV2
+
+Los casos validan rutas `blocked` y `rag_answer` sin usar Streamlit ni RAGAS.
+
+### Si usas `.venv`
+
+```powershell
+.\.venv\Scripts\python.exe eval\run_casos_ev2.py
+```
+
+### Si usas Docker
+
+```powershell
+docker run --rm --env-file .env navirag-trading python eval/run_casos_ev2.py
+```
+

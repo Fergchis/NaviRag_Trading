@@ -1,59 +1,45 @@
 # Flujo LangGraph Ev2
 
-## Qué se corrigió
+## Objetivo
 
-La versión 2 mantenía un agente funcional, pero el flujo estaba expresado como una secuencia fija de pasos. La corrección cambia esa orquestación interna por un grafo LangGraph con nodos y rutas condicionales.
+La V2 usa el patrón trabajado en Clase 2.3: un nodo `agent` respaldado por un LLM con tools enlazadas, routing basado en `tool_calls` y ejecución mediante `ToolNode`.
 
-No se implementa Ev3. El cambio solo deja la Ev2 más defendible y alineada con la estructura vista en clases.
-
-## Por qué el planner anterior era rígido
-
-El flujo anterior seguía siempre la misma cadena:
-
-```text
-load_memory -> safety_check -> retrieve_context -> write_answer -> save_memory
-```
-
-Ese diseño era simple, pero explicaba poco la toma de decisiones. También hacía menos visible qué ocurría si la consulta era bloqueada, si no había contexto o si fallaba un servicio externo.
-
-## Nuevo grafo
+## Grafo activo
 
 ```mermaid
 flowchart TD
     A[load_memory] --> B[check_financial_safety]
     B -->|blocked| C[blocked_response]
-    B -->|agent| D[agent]
-    D --> E[generate_query]
-    E --> F[retrieve_context]
-    F -->|ok| G[generate_answer]
-    F -->|retrieval_error| H[save_memory]
+    B -->|agent| D[agent LLM]
+    D -->|tool_calls| E[generate_query]
+    D -->|respuesta final| H[save_memory]
+    E --> F[ToolNode: rag_search]
+    F --> D
     C --> H
-    G --> H
     H --> I[END]
 ```
 
-## Nodos
+## Responsabilidades
 
-- `load_memory`: carga memoria short-term y long-term.
-- `check_financial_safety`: aplica reglas de seguridad financiera.
-- `blocked_response`: responde sin consultar RAG cuando la pregunta no es permitida.
-- `agent`: registra la decisión de preparar una búsqueda semántica.
-- `generate_query`: prepara la consulta que se usará en recuperación.
-- `retrieve_context`: consulta MongoDB Atlas Vector Search.
-- `generate_answer`: genera respuesta o detecta contexto insuficiente.
-- `save_memory`: guarda datos mínimos de continuidad.
+- `load_memory`: carga memoria de sesión.
+- `check_financial_safety`: bloquea recomendaciones financieras antes del LLM.
+- `agent`: usa `ChatOpenAI.bind_tools(tools)` para decidir si invoca `rag_search` o entrega la respuesta final.
+- `generate_query`: usa un LLM y un prompt separado para reformular la consulta antes del retrieval.
+- `tools`: `ToolNode` ejecuta la tool declarativa `rag_search`.
+- `save_memory`: guarda la ruta final y continuidad mínima de sesión.
 
-## Relación con la retroalimentación
+## Rutas
 
-- El flujo queda más preciso porque cada nodo tiene una responsabilidad.
-- Los casos exitosos y defectuosos quedan representados por rutas.
-- El planner deja de ser una lista rígida y pasa a estar conectado por edges condicionales.
-- La estructura se acerca al patrón de clases: `StateGraph`, nodos pequeños, rutas condicionales y memoria.
-- La solución queda preparada para crecer sin convertirla en un sistema multiagente.
+- `blocked`: safety bloqueó la consulta sin ejecutar RAG.
+- `rag_answer`: el agente respondió usando fuentes recuperadas por `rag_search`.
+- `insufficient_context`: la tool no entregó fuentes suficientes.
 
-## Pendiente para Ev3
+## Casos EV2
 
-- No agregar observabilidad avanzada todavía.
-- No agregar dashboards ni nuevas plataformas.
-- No implementar métricas operativas fuera de la pauta.
-- Evaluar seguridad y trazabilidad con más detalle solo cuando comience Ev3.
+Los casos ejecutables están en `eval/casos_ev2.json` y se ejecutan con:
+
+```bash
+python eval/run_casos_ev2.py
+```
+
+La documentación histórica anterior está aislada en `docs/_legacy_ev2/` y no describe el flujo activo.

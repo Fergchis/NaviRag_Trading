@@ -26,5 +26,7 @@ _referencias_clase/
 
 docs/*
 !docs/flujo_langgraph_ev2.md
+!docs/_legacy_ev2/
+!docs/_legacy_ev2/**
 
 *.log

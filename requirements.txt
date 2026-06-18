@@ -9,5 +9,6 @@ datasets
 pandas
 langsmith
 langchain
+langchain-openai
 langgraph
 openai
