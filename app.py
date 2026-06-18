@@ -87,15 +87,34 @@ if query := st.chat_input("Pregunta sobre los PDFs de trading..."):
 
         with st.chat_message("assistant"):
             with st.spinner("Procesando..."):
-                result = graph.invoke(
-                    {"messages": [HumanMessage(content=query)]},
-                    config={
-                        "configurable": {
-                            "thread_id": st.session_state.thread_id,
-                            "user_id": st.session_state.user_id,
-                        }
-                    },
-                )
+                try:
+                    result = graph.invoke(
+                        {"messages": [HumanMessage(content=query)]},
+                        config={
+                            "configurable": {
+                                "thread_id": st.session_state.thread_id,
+                                "user_id": st.session_state.user_id,
+                            }
+                        },
+                    )
+                except Exception as exc:
+                    err_name = type(exc).__name__.lower()
+                    err_text = str(exc).lower()
+                    if (
+                        "ratelimit" in err_name
+                        or "rate limit" in err_text
+                        or "too many requests" in err_text
+                    ):
+                        st.error(
+                            "El proveedor del modelo está limitado temporalmente. "
+                            "Espera unos minutos o revisa el token configurado."
+                        )
+                    else:
+                        st.error(
+                            "No se pudo generar la respuesta. Revisa la configuración "
+                            "del entorno o intenta nuevamente."
+                        )
+                    st.stop()
 
             answer = final_answer(result["messages"])
             diagnostics = {

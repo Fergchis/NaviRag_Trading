@@ -1,3 +1,6 @@
-from agent_app.agent import graph
+"""NaviRAG agent package.
 
-__all__ = ["graph"]
+Import the compiled graph explicitly from ``agent_app.agent``. Keeping this
+package initializer free of runtime imports avoids creating models, clients,
+stores, or the graph when a utility module is imported.
+"""

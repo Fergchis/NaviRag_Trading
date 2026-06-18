@@ -1,160 +1,129 @@
-# NaviRag Trading
+# NaviRAG Trading
 
 ## Descripción
 
-NaviRag Trading es una aplicación educativa para consultar documentos PDF sobre trading.
+NaviRAG Trading es un agente educativo para consultar documentos PDF sobre trading. Usa LangGraph para decidir qué agentes y herramientas ejecutar, MongoDB Atlas Vector Search para recuperar contexto y GitHub Models para embeddings y generación de respuestas.
 
-El proyecto usa RAG para recuperar contexto desde documentos locales y responder preguntas con apoyo de un LLM. La versión Ev2 agrega una capa mínima de agente funcional llamada `TradingAgent`.
-
-El sistema no entrega recomendaciones financieras, señales de trading, instrucciones de compra o venta ni instrucciones de inversión.
+El sistema no ejecuta operaciones ni entrega recomendaciones financieras directas, señales de compra o venta o instrucciones de inversión.
 
 ## Arquitectura
 
-Flujo de ingesta offline:
-
-```text
-PDFs locales -> Ingesta -> Embeddings -> MongoDB Atlas Vector Search
-```
-
-Flujo de consulta runtime:
+El grafo principal usa un supervisor y tres agentes especializados:
 
 ```mermaid
 flowchart TD
-    U[Usuario] --> S[Streamlit]
-    S --> A[TradingAgent]
-    A --> G[LangGraph StateGraph]
-    G --> M[load_memory]
-    M --> F[check_financial_safety]
-    F -->|bloquea| B[blocked_response]
-    F -->|permite| P[agent LLM con bind_tools]
-    P -->|tool_calls| Q[generate_query con LLM]
-    Q --> R[ToolNode: rag_search]
-    R --> P
-    B --> SV[save_memory]
-    P -->|respuesta final| SV
-    SV --> O[Respuesta educativa con fuentes]
+    U[Usuario] --> UI[Streamlit]
+    UI --> S[supervisor_node]
+
+    S -->|rag_agent| R[rag_agent]
+    S -->|rag_then_answer| R
+    S -->|memory_agent| M[memory_agent]
+    S -->|memory_then_answer| M
+    S -->|memory_then_rag_then_answer| M
+    S -->|answer_agent| A[answer_agent]
+    S -->|FINISH| E[END]
+
+    M -->|memory_agent| E
+    M -->|memory_then_answer| A
+    M -->|memory_then_rag_then_answer| R
+    R -->|rag_agent| E
+    R -->|requiere respuesta final| A
+    A --> E
 ```
 
-La tool declarativa `rag_search` consulta MongoDB Atlas Vector Search. El nodo `agent` usa GitHub Models mediante `ChatOpenAI.bind_tools`, decide la llamada y recibe el resultado desde `ToolNode` antes de responder.
+El supervisor usa un prompt y una salida estructurada para seleccionar una ruta. Los agentes se conectan mediante edges condicionales; no existe un planner lineal separado.
 
-El sistema usa:
+### Subgrafo RAG
 
-- Streamlit para la interfaz.
-- MongoDB Atlas Vector Search para búsqueda semántica.
-- GitHub Models para embeddings y generación de respuestas.
-- LangChain para declarar herramientas del agente.
-- LangGraph para conectar nodos y rutas condicionales.
-- RAGAS para una evaluación básica.
+`rag_agent` implementa el patrón de tools visto en clases:
 
-El cliente LLM propio (`GitHubModelsLLM`) se mantiene para el RAG tradicional. El grafo usa un cliente `ChatOpenAI` configurado con GitHub Models para soportar `bind_tools` y `tool_calls`.
+```mermaid
+flowchart LR
+    RM[rag_model con bind_tools] -->|tool_call rag_search| Q[generate_query]
+    Q --> T[ToolNode: rag_search]
+    T --> RM
+    RM -->|respuesta sin tool_calls| E[END]
+```
 
-## Agente Ev2
+`generate_query` reformula la conversación antes de ejecutar la búsqueda. Después de recibir el resultado de la tool, el modelo conserva las etiquetas y metadatos de las fuentes recuperadas.
 
-`TradingAgent` envuelve el RAG existente con una capa simple de agente basada en LangGraph.
+## Agentes y tools
 
-El agente:
-
-- ejecuta herramientas explícitas;
-- mantiene memoria de corto y largo plazo;
-- usa un LLM con tools enlazadas para decidir la búsqueda;
-- ejecuta las tools mediante `ToolNode`;
-- enruta según los `tool_calls` producidos por el modelo;
-- reformula la consulta mediante un prompt y un LLM;
-- conserva el enfoque educativo del sistema.
-
-### Herramientas
-
-| Tool | Función |
+| Componente | Responsabilidad |
 |---|---|
-| `rag_search` | Recupera contexto y fuentes desde MongoDB Atlas Vector Search. |
+| `supervisor_node` | Clasifica la consulta y selecciona la ruta del grafo. |
+| `rag_agent` | Recupera fragmentos documentales mediante `rag_search`. |
+| `memory_agent` | Guarda, actualiza, elimina o busca memorias mediante tools de LangMem. |
+| `answer_agent` | Redacta la respuesta final o el rechazo financiero seguro. |
+| `rag_search` | Consulta MongoDB Atlas Vector Search y devuelve fuentes, chunks y score. |
+| `manage_memory` | Escribe, actualiza o elimina recuerdos solicitados por el usuario. |
+| `search_memory` | Recupera recuerdos relevantes por similitud semántica. |
 
-Safety y memoria permanecen como nodos explícitos del grafo; no se presentan como tools del LLM.
+## Rutas condicionales
 
-### Memoria
+| Ruta | Secuencia |
+|---|---|
+| `rag_agent` | supervisor → RAG → fin |
+| `memory_agent` | supervisor → memoria → fin |
+| `answer_agent` | supervisor → respuesta → fin |
+| `rag_then_answer` | supervisor → RAG → respuesta → fin |
+| `memory_then_answer` | supervisor → memoria → respuesta → fin |
+| `memory_then_rag_then_answer` | supervisor → memoria → RAG → respuesta → fin |
+| `FINISH` | supervisor → fin con respuesta fuera de dominio |
 
-- Short-term memory: usa el historial reciente de Streamlit.
-- Long-term memory: usa JSON local en `data/memory/session_memory.json`.
-- `session_memory.json` se ignora por Git.
-- La carpeta `data/memory/` se conserva con `.gitkeep`.
+## Memoria
 
-La memoria local guarda datos mínimos:
+- **Short-term:** `MemorySaver` conserva el estado conversacional asociado a `thread_id`.
+- **Long-term semántica:** `InMemoryStore` comparte recuerdos entre conversaciones del mismo `user_id` y los indexa con embeddings.
+- **Límite:** ambas memorias viven en el proceso actual. Se pierden al reiniciar la aplicación; no existe persistencia durable en V2.
 
-- `session_id`;
-- últimas preguntas no bloqueadas;
-- ruta de decisión;
-- timestamp;
-- contador de interacciones.
+Al iniciar cada turno se reinician únicamente los diagnósticos de ejecución. El historial conversacional y las memorias no se eliminan.
 
-### Planificación y decisiones
+## Flujo de datos
 
-El flujo ya no queda como una lista rígida de pasos. El agente usa `bind_tools`, `ToolNode` y un `StateGraph` con nodos pequeños:
-
-- `load_memory`;
-- `check_financial_safety`;
-- `blocked_response`;
-- `agent`;
-- `generate_query`;
-- `tools`;
-- `save_memory`.
-
-Las rutas condicionales permiten:
-
-- bloquear sin consultar el RAG;
-- permitir que el LLM seleccione `rag_search`;
-- reformular la consulta antes de recuperar contexto;
-- responder falta de contexto si no hay chunks útiles;
-- guardar memoria al final del flujo.
-
-Rutas de decisión:
-
-- `blocked`: la pregunta pide recomendación financiera, señal o instrucción de inversión.
-- `insufficient_context`: no hay chunks recuperados o no tienen texto útil.
-- `rag_answer`: se genera una respuesta educativa con contexto recuperado.
-
-## Estructura del proyecto
+Ingesta offline:
 
 ```text
-├── app.py                  # Aplicación principal en Streamlit
-├── create_vector_index.py  # Creación del índice vectorial
-├── requirements.txt        # Dependencias del proyecto
-├── prompts/
-│   └── prompt.py           # Prompt del sistema RAG
-├── src/
-│   ├── agent/
-│   │   ├── agent.py        # TradingAgent
-│   │   ├── graph.py        # Grafo con bind_tools y ToolNode
-│   │   ├── memory.py       # Memoria short-term y long-term
-│   │   └── tools.py        # Tool rag_search declarada con LangChain
-│   ├── config.py           # Configuración general
-│   ├── ingesta/
-│   │   └── ingest.py       # Ingesta de PDFs
-│   ├── retrieval/
-│   │   └── retrieval.py    # Recuperación semántica
-│   ├── generate/
-│   │   └── generate.py     # Generación RAG
-│   └── utils/
-│       ├── embeddings.py   # Embeddings con GitHub Models
-│       ├── llm.py          # Cliente LLM propio
-│       ├── mongodb.py      # Conexión a MongoDB
-│       └── safety.py       # Seguridad financiera básica
-├── eval/
-│   ├── dataset.json        # Dataset de evaluación
-│   ├── evaluate.py         # Evaluación con RAGAS
-│   ├── casos_ev2.json      # Casos ejecutables del agente
-│   └── run_casos_ev2.py    # Validador de rutas EV2
-└── data/
-    ├── raw/                # PDFs locales
-    └── memory/             # Memoria local ignorada por Git
+PDFs en data/raw → MarkItDown → chunks → embeddings → MongoDB Atlas
 ```
 
-## Setup
+Consulta:
 
-Para iniciar el proyecto de manera correcta se recomienda leer el archivo llamado "COMO_EJECUTAR.md".
+```text
+Streamlit → supervisor → agentes seleccionados → respuesta educativa con fuentes
+```
 
-Ejecución local con Streamlit:
+## Estructura principal
+
+```text
+├── app.py
+├── agent_app/
+│   ├── agent.py
+│   ├── prompts.py
+│   ├── tools.py
+│   └── utils/
+├── src/
+│   ├── config.py
+│   └── ingesta/
+├── eval/
+│   ├── casos_ev2.json
+│   ├── run_casos_ev2.py
+│   ├── dataset.json
+│   └── evaluate.py
+├── docs/
+│   └── flujo_langgraph_ev2.md
+├── Dockerfile
+└── requirements.txt
+```
+
+## Ejecución
+
+La configuración completa de GitHub Models, MongoDB Atlas, ingesta y Docker está en [COMO_EJECUTAR.md](COMO_EJECUTAR.md).
+
+Ejecución local, después de crear el entorno e instalar `requirements.txt`:
 
 ```powershell
-python -m streamlit run app.py
+.\.venv\Scripts\python.exe -m streamlit run app.py
 ```
 
 Ejecución con Docker:
@@ -164,43 +133,30 @@ docker build -t navirag-trading .
 docker run --rm -p 8501:8501 --env-file .env navirag-trading
 ```
 
-## Evaluación
+## Casos EV2
 
-El proyecto incluye una evaluación básica con RAGAS usando `eval/dataset.json`.
+Los casos funcionales, de memoria y de fallo controlado se definen en `eval/casos_ev2.json`:
 
-```bash
-python eval/evaluate.py
+```powershell
+.\.venv\Scripts\python.exe eval\run_casos_ev2.py
 ```
 
-También se puede validar manualmente el agente con casos como:
+El runner comprueba rutas, agentes, tools, diagnósticos y continuidad short-term. Cuando puede completar la ejecución, guarda un resumen reproducible en `eval/resultados_ev2.json`.
 
-- pregunta educativa con contexto;
-- pregunta de seguimiento;
-- pregunta sin contexto suficiente;
-- pregunta bloqueada por seguridad financiera.
+Los casos `error_simulado` validan que el runner detecta y registra de forma controlada una excepción inyectada. No demuestran recuperación automática del servicio afectado.
 
-El archivo `eval/casos_ev2.json` contiene casos exitosos y defectuosos ejecutables:
+La evaluación RAGAS existente permanece disponible mediante:
 
-```bash
-python eval/run_casos_ev2.py
+```powershell
+.\.venv\Scripts\python.exe eval\evaluate.py
 ```
 
-## Corrección V2
+## Límites de V2
 
-La corrección responde a la retroalimentación docente con cambios acotados:
-
-- reemplaza el planner rígido por un agente LLM con `bind_tools`;
-- usa `ToolNode` y routing basado en `tool_calls`;
-- reformula la query con un prompt y un LLM;
-- ejecuta casos exitosos y defectuosos desde consola;
-- mantiene Streamlit, MongoDB Atlas Vector Search y GitHub Models.
-
-## Limitaciones
-
-- No es un sistema de trading operativo.
-- No ejecuta órdenes.
-- No entrega señales de compra o venta.
 - No usa datos de mercado en tiempo real.
-- La memoria long-term es un JSON local simple.
-- La seguridad financiera usa reglas básicas.
-- El sistema depende de MongoDB Atlas y GitHub Models.
+- No ejecuta órdenes ni backtesting.
+- No entrega asesoría financiera directa.
+- La memoria no persiste tras reiniciar el proceso.
+- Depende de GitHub Models y MongoDB Atlas para una ejecución funcional completa.
+
+Persistencia durable, autenticación, observabilidad avanzada, dashboards, métricas operativas y componentes equivalentes quedan fuera de V2 y corresponden a una evolución posterior.

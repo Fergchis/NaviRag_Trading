@@ -13,6 +13,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage  # no
 
 
 CASES_PATH = Path(__file__).with_name("casos_ev2.json")
+RESULTS_PATH = Path(__file__).with_name("resultados_ev2.json")
 
 
 def get_final_answer(messages: list) -> str:
@@ -111,6 +112,70 @@ def run_functional_case(case: dict, user_id: str) -> dict:
     }
 
 
+def run_short_term_case(case: dict, user_id: str) -> dict:
+    thread_id = f"{case['id'].lower()}-{uuid.uuid4()}"
+    config = {
+        "configurable": {
+            "thread_id": thread_id,
+            "user_id": user_id,
+        }
+    }
+    started = time.perf_counter()
+    routes = []
+    agents_by_step = []
+    tools_by_step = []
+    previous_tool_call_count = 0
+    result = None
+
+    for step in case["pasos"]:
+        result = agent_module.graph.invoke(
+            {"messages": [HumanMessage(content=step["pregunta"])]},
+            config=config,
+        )
+        all_calls = extract_tool_calls(result["messages"])
+        current_calls = all_calls[previous_tool_call_count:]
+        previous_tool_call_count = len(all_calls)
+
+        routes.append(result.get("next"))
+        agents_by_step.append(result.get("executed_agents", []))
+        tools_by_step.append([call["name"] for call in current_calls])
+
+    latency = time.perf_counter() - started
+    messages = result["messages"] if result else []
+    human_contents = [
+        message_text(message.content)
+        for message in messages
+        if isinstance(message, HumanMessage)
+    ]
+    questions = [step["pregunta"] for step in case["pasos"]]
+    continuity_ok = all(question in human_contents for question in questions)
+    expected_routes = [step["ruta_esperada"] for step in case["pasos"]]
+    expected_agents = [step.get("agentes_esperados", []) for step in case["pasos"]]
+    expected_tools = [step.get("tools_esperadas", []) for step in case["pasos"]]
+    diagnostics_ok = agents_by_step == expected_agents
+
+    return {
+        "passed": (
+            continuity_ok
+            and routes == expected_routes
+            and diagnostics_ok
+            and tools_by_step == expected_tools
+        ),
+        "latency": latency,
+        "routes": routes,
+        "agents_by_step": agents_by_step,
+        "tools_by_step": tools_by_step,
+        "continuity_ok": continuity_ok,
+        "diagnostics_ok": diagnostics_ok,
+        "observation": (
+            "El checkpointer conservó ambos mensajes y los diagnósticos se evaluaron "
+            "de forma independiente por turno."
+            if continuity_ok and diagnostics_ok
+            else "Falló la continuidad del hilo o el reinicio de diagnósticos."
+        ),
+    }
+
+
 def run_error_case(case: dict) -> dict:
     expected_exception = case["excepcion_esperada"]
     error = RuntimeError(f"simulated {case['objetivo_error']} failure")
@@ -194,11 +259,14 @@ def run_cases() -> bool:
     user_id = f"ev2-user-{uuid.uuid4()}"
     all_passed = True
     latencies = []
+    result_records = []
 
     for case in cases:
         try:
             if case["tipo"] == "error_simulado":
                 outcome = run_error_case(case)
+            elif case["tipo"] == "secuencia_short_term":
+                outcome = run_short_term_case(case, user_id)
             else:
                 outcome = run_functional_case(case, user_id)
         except Exception as exc:
@@ -210,6 +278,42 @@ def run_cases() -> bool:
 
         all_passed = all_passed and outcome["passed"]
         latencies.append(outcome["latency"])
+
+        if case["tipo"] == "secuencia_short_term":
+            inputs = [step["pregunta"] for step in case["pasos"]]
+            expected_routes = [step["ruta_esperada"] for step in case["pasos"]]
+            observed_routes = outcome.get("routes", [])
+            executed_agents = outcome.get("agents_by_step", [])
+            used_tools = outcome.get("tools_by_step", [])
+            observation = outcome.get("observation", "")
+        elif case["tipo"] == "error_simulado":
+            inputs = f"Inyección de error en {case['objetivo_error']}"
+            expected_routes = case.get("ruta_simulada")
+            observed_routes = None
+            executed_agents = []
+            used_tools = []
+            observation = (
+                "Valida que el runner detecta y registra de forma controlada el fallo "
+                "inyectado; no valida recuperación automática real."
+            )
+        else:
+            inputs = case["pregunta"]
+            expected_routes = case["ruta_esperada"]
+            observed_routes = outcome.get("route")
+            executed_agents = outcome.get("agents", [])
+            used_tools = outcome.get("tools", [])
+            observation = outcome.get("error", "Validación funcional completa.")
+
+        result_records.append({
+            "caso": case["id"],
+            "input": inputs,
+            "ruta_esperada": expected_routes,
+            "ruta_observada": observed_routes,
+            "agentes_ejecutados": executed_agents,
+            "tools_usadas": used_tools,
+            "resultado": "PASS" if outcome["passed"] else "FAIL",
+            "observacion": observation,
+        })
 
         print("=" * 72)
         print(f"id: {case['id']}")
@@ -224,13 +328,25 @@ def run_cases() -> bool:
             print(f"diagnósticos: {'PASS' if outcome['diagnostics_ok'] else 'FAIL'}")
             if not outcome["passed"]:
                 print(f"respuesta: {outcome['answer']}")
+        elif "routes" in outcome:
+            print(f"rutas: {outcome['routes']}")
+            print(f"agentes por turno: {outcome['agents_by_step']}")
+            print(f"tools por turno: {outcome['tools_by_step']}")
+            print(f"continuidad: {'PASS' if outcome['continuity_ok'] else 'FAIL'}")
+            print(f"diagnósticos: {'PASS' if outcome['diagnostics_ok'] else 'FAIL'}")
         if outcome.get("error"):
             print(f"error: {outcome['error']}")
+
+    RESULTS_PATH.write_text(
+        json.dumps(result_records, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
     print("=" * 72)
     average = sum(latencies) / len(latencies) if latencies else 0.0
     print(f"latencia promedio: {average:.3f}s")
     print(f"resultado general: {'PASS' if all_passed else 'FAIL'}")
+    print(f"resultados: {RESULTS_PATH}")
     return all_passed
 
 

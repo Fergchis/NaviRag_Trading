@@ -108,6 +108,25 @@
     "rechazo_financiero_esperado": false
   },
   {
+    "id": "EV2-ST01",
+    "tipo": "secuencia_short_term",
+    "descripcion": "Valida continuidad conversacional y reinicio de diagnósticos usando dos mensajes con el mismo thread_id.",
+    "pasos": [
+      {
+        "pregunta": "Hola, ¿qué puedes hacer?",
+        "ruta_esperada": "answer_agent",
+        "agentes_esperados": ["answer_agent"],
+        "tools_esperadas": []
+      },
+      {
+        "pregunta": "Resume en una frase lo que acabas de explicar.",
+        "ruta_esperada": "answer_agent",
+        "agentes_esperados": ["answer_agent"],
+        "tools_esperadas": []
+      }
+    ]
+  },
+  {
     "id": "EV2-E01",
     "tipo": "error_simulado",
     "objetivo_error": "supervisor",

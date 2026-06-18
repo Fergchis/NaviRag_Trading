@@ -1,45 +1,93 @@
-# Flujo LangGraph Ev2
+# LangGraph — Flujo activo de NaviRAG Trading V2
 
-## Objetivo
+## Estructura
 
-La V2 usa el patrón trabajado en Clase 2.3: un nodo `agent` respaldado por un LLM con tools enlazadas, routing basado en `tool_calls` y ejecución mediante `ToolNode`.
+La V2 usa dos niveles de orquestación:
 
-## Grafo activo
+1. Un grafo principal con un supervisor y tres agentes especializados.
+2. Un subgrafo RAG donde el modelo decide una llamada a tool, `ToolNode` la ejecuta y el resultado vuelve al modelo.
+
+El estado compartido contiene los mensajes, la ruta seleccionada y diagnósticos del turno. `add_messages` conserva el historial conversacional y `MemorySaver` lo separa por `thread_id`.
+
+## Grafo principal
 
 ```mermaid
 flowchart TD
-    A[load_memory] --> B[check_financial_safety]
-    B -->|blocked| C[blocked_response]
-    B -->|agent| D[agent LLM]
-    D -->|tool_calls| E[generate_query]
-    D -->|respuesta final| H[save_memory]
-    E --> F[ToolNode: rag_search]
-    F --> D
-    C --> H
-    H --> I[END]
+    START --> S[supervisor_node]
+
+    S -->|rag_agent| R[rag_agent]
+    S -->|rag_then_answer| R
+    S -->|memory_agent| M[memory_agent]
+    S -->|memory_then_answer| M
+    S -->|memory_then_rag_then_answer| M
+    S -->|answer_agent| A[answer_agent]
+    S -->|FINISH| END
+
+    M -->|memory_agent| END
+    M -->|memory_then_answer| A
+    M -->|memory_then_rag_then_answer| R
+
+    R -->|rag_agent| END
+    R -->|rag_then_answer| A
+    R -->|memory_then_rag_then_answer| A
+
+    A --> END
 ```
 
-## Responsabilidades
+## Responsabilidades de los nodos
 
-- `load_memory`: carga memoria de sesión.
-- `check_financial_safety`: bloquea recomendaciones financieras antes del LLM.
-- `agent`: usa `ChatOpenAI.bind_tools(tools)` para decidir si invoca `rag_search` o entrega la respuesta final.
-- `generate_query`: usa un LLM y un prompt separado para reformular la consulta antes del retrieval.
-- `tools`: `ToolNode` ejecuta la tool declarativa `rag_search`.
-- `save_memory`: guarda la ruta final y continuidad mínima de sesión.
+| Nodo | Responsabilidad |
+|---|---|
+| `supervisor_node` | Usa `SUPERVISOR_SYSTEM_PROMPT` y la salida estructurada `Route` para elegir el recorrido. Reinicia únicamente los diagnósticos del turno. |
+| `rag_agent` | Recupera contexto documental y conserva fuentes. Internamente usa el subgrafo RAG. |
+| `memory_agent` | Ejecuta `manage_memory` o `search_memory` según la tarea delegada. |
+| `answer_agent` | Redacta la respuesta final usando el contexto y las memorias disponibles. También aplica el rechazo financiero seguro. |
 
-## Rutas
+Antes de delegar, `summarize_for` prepara una instrucción acotada para el agente especializado. No existe una secuencia fija que ejecute todos los agentes.
 
-- `blocked`: safety bloqueó la consulta sin ejecutar RAG.
-- `rag_answer`: el agente respondió usando fuentes recuperadas por `rag_search`.
-- `insufficient_context`: la tool no entregó fuentes suficientes.
+## Subgrafo RAG
 
-## Casos EV2
-
-Los casos ejecutables están en `eval/casos_ev2.json` y se ejecutan con:
-
-```bash
-python eval/run_casos_ev2.py
+```mermaid
+flowchart TD
+    RM[rag_model] -->|rag_search tool_call| Q[generate_query]
+    RM -->|sin tool_calls| END
+    Q --> T[ToolNode: rag_search]
+    T --> RM
 ```
 
-La documentación histórica anterior está aislada en `docs/_legacy_ev2/` y no describe el flujo activo.
+1. `rag_model` usa `bind_tools` con `rag_search`.
+2. Si el modelo solicita la tool, `generate_query` reformula la consulta.
+3. `ToolNode` ejecuta `rag_search` contra MongoDB Atlas Vector Search.
+4. El resultado vuelve a `rag_model`, que resume el contexto con etiquetas `[FUENTE N]`.
+
+## Tools
+
+| Tool | Agente | Efecto |
+|---|---|---|
+| `rag_search` | `rag_agent` | Consulta fragmentos y metadatos documentales. |
+| `manage_memory` | `memory_agent` | Crea, actualiza o elimina una memoria solicitada. |
+| `search_memory` | `memory_agent` | Busca recuerdos del mismo `user_id`. |
+
+## Memoria
+
+- `MemorySaver`: memoria conversacional short-term por `thread_id`.
+- `InMemoryStore`: memoria semántica compartida entre hilos, separada por `user_id`.
+- `create_manage_memory_tool` y `create_search_memory_tool`: acceso del agente al store.
+
+El store es long-term respecto de conversaciones diferentes dentro del mismo proceso, pero no es persistente después de reiniciar la aplicación.
+
+## Rutas reales
+
+| Ruta | Recorrido |
+|---|---|
+| `rag_agent` | supervisor → RAG → fin |
+| `memory_agent` | supervisor → memoria → fin |
+| `answer_agent` | supervisor → respuesta → fin |
+| `rag_then_answer` | supervisor → RAG → respuesta → fin |
+| `memory_then_answer` | supervisor → memoria → respuesta → fin |
+| `memory_then_rag_then_answer` | supervisor → memoria → RAG → respuesta → fin |
+| `FINISH` | supervisor → fin |
+
+## Diagnósticos por turno
+
+Al entrar en `supervisor_node` se reinician `executed_agents`, `final_agent`, `retrieval_used`, `memory_used` y `retrieved_context`. Esto evita mezclar diagnósticos de turnos anteriores sin borrar los mensajes del checkpointer ni las memorias del store.

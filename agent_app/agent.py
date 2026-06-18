@@ -207,6 +207,11 @@ def supervisor_node(state: AgentState) -> dict:
     ])
     updates: dict = {
         "next": result.next,
+        "executed_agents": [],
+        "final_agent": "supervisor",
+        "retrieval_used": False,
+        "memory_used": False,
+        "retrieved_context": "",
         "financial_rejection": result.financial_rejection,
     }
     last_human = next(
@@ -221,8 +226,6 @@ def supervisor_node(state: AgentState) -> dict:
         updates["user_query"] = str(last_human.content)
     if result.response:
         updates["messages"] = [AIMessage(content=result.response)]
-    if result.next == "FINISH":
-        updates["final_agent"] = "supervisor"
     return updates
 
 
