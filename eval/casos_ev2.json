@@ -50,7 +50,7 @@
   {
     "id": "EV2-F05",
     "tipo": "funcional",
-    "pregunta": "Explícame la gestión de riesgo respetando mis preferencias.",
+    "pregunta": "Explícame la gestión de riesgo usando los documentos.",
     "ruta_esperada": "rag_then_answer",
     "agentes_esperados": ["rag_agent", "answer_agent"],
     "tools_esperadas": ["rag_search"],
