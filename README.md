@@ -15,7 +15,7 @@ Usuario
               └── answer_agent  → respuesta final
 ```
 
-El supervisor selecciona rutas directas o recorridos compuestos. El agente RAG contiene un subgrafo con reformulación de consulta, `ToolNode` y `rag_search`. La memoria conversacional usa `MemorySaver`; la memoria entre conversaciones usa `InMemoryStore` y la tool explícita `save_memory`.
+El supervisor selecciona `rag_agent`, `memory_agent`, `answer_agent`, `rag_then_answer` o `FINISH`. El agente RAG contiene un subgrafo con reformulación de consulta, `ToolNode` y `rag_search`. El agente de memoria usa `save_memory` y `search_memory`. La memoria conversacional usa `MemorySaver` y la memoria entre conversaciones usa `InMemoryStore`.
 
 La descripción completa de nodos, edges, rutas, tools y evidencia EV2 está en [docs/flujo_langgraph_ev2.md](docs/flujo_langgraph_ev2.md).
 

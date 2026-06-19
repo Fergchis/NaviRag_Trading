@@ -99,5 +99,31 @@ def save_memory(
     return f"Memoria guardada correctamente con id {memory_id}."
 
 
+@tool
+def search_memory(
+    query: str,
+    config: RunnableConfig,
+    store: Annotated[BaseStore, InjectedStore()],
+) -> str:
+    """Busca información del usuario en la memoria long-term."""
+    user_id = config.get("configurable", {}).get("user_id")
+    if not user_id:
+        return "No se pudo consultar la memoria porque falta user_id."
+
+    results = store.search(
+        (MEMORY_NAMESPACE, str(user_id)),
+        query=query,
+        limit=5,
+    )
+    memories = [
+        str(item.value.get("memory"))
+        for item in results
+        if isinstance(item.value, dict) and item.value.get("memory")
+    ]
+    if not memories:
+        return "No se encontraron memorias relevantes para esta consulta."
+    return "Memorias encontradas:\n- " + "\n- ".join(memories)
+
+
 rag_tools = [rag_search]
-memory_tools = [save_memory]
+memory_tools = [save_memory, search_memory]

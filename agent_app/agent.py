@@ -19,7 +19,7 @@ from agent_app.prompts import (
     RAG_AGENT_SYSTEM_PROMPT,
     SUPERVISOR_SYSTEM_PROMPT,
 )
-from agent_app.tools import MEMORY_NAMESPACE, memory_tools, rag_tools
+from agent_app.tools import memory_tools, rag_tools
 from agent_app.utils.embeddings import GitHubModelsEmbeddings
 
 load_dotenv()
@@ -55,10 +55,8 @@ class Route(BaseModel):
     next: Literal[
         "rag_agent",
         "memory_agent",
-        "answer_agent",
         "rag_then_answer",
-        "memory_then_answer",
-        "memory_then_rag_then_answer",
+        "answer_agent",
         "FINISH",
     ]
     response: Optional[str] = None
@@ -157,10 +155,9 @@ def summarize_for(messages: list, role: str, user_query: str) -> HumanMessage:
             "original. Ignora como tema de búsqueda las instrucciones operativas y los "
             "mensajes internos de memoria. Solo describe la tarea de recuperación."
         ),
-        "memory_save": (
-            "Resume qué información útil y estable del usuario debe guardarse. La tarea "
-            "delegada debe exigir llamar exactamente una vez a save_memory. No agregues "
-            "información que el usuario no haya comunicado."
+        "memory": (
+            "Resume si debe guardarse o buscarse información del usuario. Incluye solo "
+            "la información necesaria para usar save_memory o search_memory."
         ),
         "answer": (
             "Prepara la tarea de respuesta a la consulta original. Incluye únicamente los "
@@ -239,48 +236,16 @@ def rag_node(state: AgentState, config: RunnableConfig) -> dict:
     }
 
 
-def search_long_term_memory(query: str, config: RunnableConfig) -> list[str]:
-    user_id = config.get("configurable", {}).get("user_id")
-    if not user_id:
-        return []
-
-    results = store.search(
-        (MEMORY_NAMESPACE, str(user_id)),
-        query=query,
-        limit=5,
-    )
-    memories = []
-    for item in results:
-        value = item.value
-        if isinstance(value, dict):
-            memory = value.get("memory")
-        else:
-            memory = value
-        if memory:
-            memories.append(str(memory))
-    return memories
-
-
 def memory_node(state: AgentState, config: RunnableConfig) -> dict:
-    if state["next"] == "memory_agent":
-        summary = summarize_for(state["messages"], "memory_save", state["user_query"])
-        result = memory_agent.invoke({"messages": [summary]}, config)
-        messages = result["messages"]
-        memory_used = any(
-            call["name"] == "save_memory"
-            for message in messages
-            if isinstance(message, AIMessage)
-            for call in message.tool_calls
-        )
-    else:
-        memories = search_long_term_memory(state["user_query"], config)
-        content = (
-            "Memorias long-term recuperadas:\n- " + "\n- ".join(memories)
-            if memories
-            else "No se encontraron memorias long-term relevantes para esta consulta."
-        )
-        messages = [AIMessage(content=content)]
-        memory_used = True
+    summary = summarize_for(state["messages"], "memory", state["user_query"])
+    result = memory_agent.invoke({"messages": [summary]}, config)
+    messages = result["messages"]
+    memory_used = any(
+        call["name"] in {"save_memory", "search_memory"}
+        for message in messages
+        if isinstance(message, AIMessage)
+        for call in message.tool_calls
+    )
 
     return {
         "messages": messages,
@@ -301,27 +266,18 @@ def answer_node(state: AgentState, config: RunnableConfig) -> dict:
     }
 
 
-def supervisor_route(state: AgentState) -> str:
-    route = state["next"]
-    if route == "FINISH":
+def supervisor_route(
+    state: AgentState,
+) -> Literal["rag_agent", "memory_agent", "answer_agent", "__end__"]:
+    if state["next"] == "FINISH":
         return END
-    if route in {"rag_then_answer"}:
+    if state["next"] == "rag_then_answer":
         return "rag_agent"
-    if route in {"memory_then_answer", "memory_then_rag_then_answer"}:
-        return "memory_agent"
-    return route
+    return state["next"]
 
 
-def after_memory_route(state: AgentState) -> str:
-    if state["next"] == "memory_then_answer":
-        return "answer_agent"
-    if state["next"] == "memory_then_rag_then_answer":
-        return "rag_agent"
-    return END
-
-
-def after_rag_route(state: AgentState) -> str:
-    if state["next"] in {"rag_then_answer", "memory_then_rag_then_answer"}:
+def after_rag_route(state: AgentState) -> Literal["answer_agent", "__end__"]:
+    if state["next"] == "rag_then_answer":
         return "answer_agent"
     return END
 
@@ -334,8 +290,8 @@ builder.add_node("answer_agent", answer_node)
 
 builder.add_edge(START, "supervisor")
 builder.add_conditional_edges("supervisor", supervisor_route)
-builder.add_conditional_edges("memory_agent", after_memory_route)
 builder.add_conditional_edges("rag_agent", after_rag_route)
+builder.add_edge("memory_agent", END)
 builder.add_edge("answer_agent", END)
 
 checkpointer = MemorySaver()

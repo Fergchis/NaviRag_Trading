@@ -27,18 +27,13 @@ flowchart TD
     S -->|rag_agent| R[rag_agent]
     S -->|rag_then_answer| R
     S -->|memory_agent| M[memory_agent]
-    S -->|memory_then_answer| M
-    S -->|memory_then_rag_then_answer| M
     S -->|answer_agent| A[answer_agent]
     S -->|FINISH| E[END]
 
-    M -->|memory_agent| E
-    M -->|memory_then_answer| A
-    M -->|memory_then_rag_then_answer| R
+    M --> E
 
     R -->|rag_agent| E
     R -->|rag_then_answer| A
-    R -->|memory_then_rag_then_answer| A
 
     A --> E
 ```
@@ -69,10 +64,10 @@ Los campos de diagnóstico se reinician al entrar en `supervisor_node`. Los mens
 |---|---|---|
 | `supervisor` | `supervisor_node` | Usa `SUPERVISOR_SYSTEM_PROMPT` y `with_structured_output(Route)` para seleccionar la ruta. |
 | `rag_agent` | `rag_node` | Resume la tarea, invoca el subgrafo RAG, recoge `ToolMessage` y conserva fuentes. |
-| `memory_agent` | `memory_node` | Guarda una memoria mediante `save_memory` o recupera memorias directamente desde `InMemoryStore`. |
+| `memory_agent` | `memory_node` | Invoca `save_memory` o `search_memory` y finaliza. |
 | `answer_agent` | `answer_node` | Redacta la respuesta final usando el contexto disponible y aplica seguridad financiera. |
 
-Antes de delegar una tarea de RAG, memoria escrita o respuesta final, `summarize_for` genera una instrucción acotada para el agente correspondiente.
+Antes de delegar una tarea de RAG, memoria o respuesta final, `summarize_for` genera una instrucción acotada para el agente correspondiente.
 
 ## 5. Edges y rutas condicionales
 
@@ -82,7 +77,7 @@ Antes de delegar una tarea de RAG, memoria escrita o respuesta final, `summarize
 |---|---|---|
 | `START` | Fijo | `supervisor` |
 | `supervisor` | Condicional | `rag_agent`, `memory_agent`, `answer_agent` o `END` |
-| `memory_agent` | Condicional | `answer_agent`, `rag_agent` o `END` |
+| `memory_agent` | Fijo | `END` |
 | `rag_agent` | Condicional | `answer_agent` o `END` |
 | `answer_agent` | Fijo | `END` |
 
@@ -91,14 +86,12 @@ Antes de delegar una tarea de RAG, memoria escrita o respuesta final, `summarize
 | Ruta | Recorrido |
 |---|---|
 | `rag_agent` | supervisor → RAG → fin |
-| `memory_agent` | supervisor → memoria escrita → fin |
+| `memory_agent` | supervisor → guardar o buscar memoria → fin |
 | `answer_agent` | supervisor → respuesta → fin |
 | `rag_then_answer` | supervisor → RAG → respuesta → fin |
-| `memory_then_answer` | supervisor → lectura de memoria → respuesta → fin |
-| `memory_then_rag_then_answer` | supervisor → lectura de memoria → RAG → respuesta → fin |
 | `FINISH` | supervisor → fin con respuesta fuera de dominio |
 
-`supervisor_route`, `after_memory_route` y `after_rag_route` implementan estas decisiones.
+`supervisor_route` y `after_rag_route` implementan las decisiones condicionales. `memory_agent` y `answer_agent` se conectan directamente con `END`.
 
 ## 6. Subgrafo RAG
 
@@ -134,10 +127,9 @@ Las tools públicas siguen el patrón del profesor: funciones pequeñas, argumen
 |---|---|---|
 | `rag_search(query)` | `rag_agent` | Genera el embedding, ejecuta MongoDB Atlas Vector Search y devuelve fragmentos con metadatos. |
 | `save_memory(memory)` | `memory_agent` | Guarda información útil y estable bajo el namespace del `user_id`. |
+| `search_memory(query)` | `memory_agent` | Busca información del usuario bajo el mismo namespace. |
 
-`save_memory` recibe el `InMemoryStore` mediante `InjectedStore`, crea un UUID y guarda un valor con la forma `{"memory": ...}`. No modifica MongoDB ni reemplaza el flujo RAG.
-
-La lectura long-term no es una tool pública. `search_long_term_memory` es un helper interno de `agent.py` que consulta el mismo store con la consulta del usuario y un límite de cinco resultados.
+Las dos tools reciben el `InMemoryStore` mediante `InjectedStore`. `save_memory` crea un UUID y guarda un valor con la forma `{"memory": ...}`; `search_memory` consulta hasta cinco resultados.
 
 No se implementan operaciones de update o delete en esta versión.
 
@@ -164,7 +156,7 @@ Streamlit conserva `user_id` al iniciar una conversación nueva. Esto permite re
 LangMem fue retirado del runtime y de `requirements.txt`. Su API genérica de administración se sustituyó por la implementación mínima necesaria:
 
 - tool explícita `save_memory` para escritura;
-- helper interno `search_long_term_memory` para lectura;
+- tool explícita `search_memory` para lectura;
 - `MemorySaver` e `InMemoryStore` se mantienen.
 
 El motivo técnico es mantener tools explícitas y de responsabilidad acotada, como en los ejemplos del profesor, sin replicar operaciones de update/delete que no forman parte de esta fase.
@@ -210,8 +202,8 @@ El objeto exportado es `graph`, resultado de compilar el `StateGraph` principal 
 |---|---|
 | `EV2-F01`, `EV2-F02` | Recuperación documental, fuentes y rutas RAG. |
 | `EV2-F03` | Escritura de una preferencia en memoria long-term. |
-| `EV2-F04` | Recuperación de una preferencia guardada. |
-| `EV2-F05` | Combinación de memoria, RAG y respuesta final. |
+| `EV2-F04` | Recuperación de una preferencia mediante el agente de memoria. |
+| `EV2-F05` | Recuperación documental y respuesta final mediante `rag_then_answer`. |
 | `EV2-F06` | Respuesta directa sin retrieval. |
 | `EV2-F07` | Rechazo financiero seguro. |
 | `EV2-F08` | Salida controlada para una consulta fuera de dominio. |
@@ -241,7 +233,7 @@ Estos casos verifican que el runner detecta y registra el error inyectado. No de
 | Herramienta de escritura | `save_memory` sobre `InMemoryStore`. | `agent_app/tools.py` |
 | Razonamiento y coordinación | Supervisor estructurado, reformulación y agente de respuesta. | `agent_app/agent.py`, `agent_app/prompts.py` |
 | Memoria short-term | `MemorySaver` asociado a `thread_id`. | `agent_app/agent.py`, `app.py` |
-| Memoria long-term | `InMemoryStore`, namespace por `user_id` y helper de búsqueda. | `agent_app/agent.py`, `agent_app/tools.py` |
+| Memoria long-term | `InMemoryStore`, namespace por `user_id`, `save_memory` y `search_memory`. | `agent_app/agent.py`, `agent_app/tools.py` |
 | Recuperación de contexto | Embeddings, `$vectorSearch`, metadatos y fuentes. | `agent_app/tools.py`, `agent_app/utils/embeddings.py` |
 | Planificación | Rutas directas y compuestas seleccionadas por `Route`. | `agent_app/agent.py` |
 | Decisión adaptativa | `add_conditional_edges` y funciones de routing. | `agent_app/agent.py` |
