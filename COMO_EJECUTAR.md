@@ -174,7 +174,7 @@ http://localhost:8501
 
 ## 9. Ejecutar casos EV2
 
-Los casos validan rutas `blocked` y `rag_answer` sin usar Streamlit ni RAGAS.
+Los casos validan las rutas actuales `FINISH`, `answer_agent`, `memory_agent`, `rag_agent` y `rag_then_answer` sin usar Streamlit ni RAGAS.
 
 ### Si usas `.venv`
 
