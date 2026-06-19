@@ -77,7 +77,7 @@ Si MongoDB Atlas ya tiene documentos ingeridos y el índice vectorial existe, es
 En este punto se debe elegir una de las dos formas de ejecución:
 
 - **Camino A:** usar `.venv`.
-- **Camino B:** usar Docker.
+- **Camino B:** usar Docker. (docker te amo docker)
 
 No es necesario usar ambos caminos.
 

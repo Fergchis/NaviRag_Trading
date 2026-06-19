@@ -26,39 +26,9 @@ La descripción completa de nodos, edges, rutas, tools y evidencia EV2 está en 
 - MongoDB Atlas con la colección documental y el índice vectorial configurados.
 - Dependencias declaradas en `requirements.txt`.
 
-## Variables de entorno
+## Ejecucion
 
-Crear `.env` a partir de `.env.example`. Variables principales:
-
-```text
-GITHUB_TOKEN=
-GITHUB_CHAT_MODEL=openai/gpt-4o-mini
-GITHUB_EMBEDDING_MODEL=openai/text-embedding-3-small
-GITHUB_MODELS_CHAT_ENDPOINT=https://models.github.ai/inference/chat/completions
-GITHUB_MODELS_EMBEDDINGS_ENDPOINT=https://models.github.ai/inference/embeddings
-
-MONGODB_CONNECTION_STRING=
-MONGODB_DATABASE=navirag
-MONGODB_COLLECTION=embeddings
-MONGODB_VECTOR_INDEX=vector_index
-```
-
-## Ejecución
-
-Ejecución local, después de preparar el entorno e instalar `requirements.txt`:
-
-```powershell
-.\.venv\Scripts\python.exe -m streamlit run app.py
-```
-
-Ejecución con Docker:
-
-```powershell
-docker build -t navirag-trading .
-docker run --rm -p 8501:8501 --env-file .env navirag-trading
-```
-
-La configuración de MongoDB, creación del índice e ingesta se mantiene en [COMO_EJECUTAR.md](COMO_EJECUTAR.md).
+Leer archivo "COMO_EJECUTAR.md", esta en la raiz del proyecto.
 
 ## LangGraph
 
@@ -67,12 +37,6 @@ La configuración de MongoDB, creación del índice e ingesta se mantiene en [CO
 ```text
 ./agent_app/agent.py:graph
 ```
-
-## Evaluación EV2
-
-Los casos funcionales, de memoria, continuidad y errores inyectados se definen en `eval/casos_ev2.json`. El runner está en `eval/run_casos_ev2.py` y su output `eval/resultados_ev2.json` no se versiona.
-
-La evidencia ejecutada no forma parte de este README y se incorporará posteriormente al informe mediante screenshots.
 
 ## Límites
 

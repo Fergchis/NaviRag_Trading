@@ -10,8 +10,6 @@ NaviRAG Trading es un agente educativo que responde consultas sobre documentos d
 - memoria short-term y long-term;
 - un agente final que redacta respuestas educativas y aplica el rechazo financiero seguro.
 
-La implementación sigue el patrón de clase: estado compartido, nodos con responsabilidades acotadas, edges fijos, edges condicionales y tools explícitas con `@tool`.
-
 ## 2. Arquitectura general
 
 La V2 contiene dos niveles de orquestación:
@@ -55,8 +53,6 @@ No existe un planner lineal separado. La planificación se expresa mediante la s
 | `memory_used` | Indica uso de memoria. |
 | `financial_rejection` | Indica rechazo de una solicitud financiera accionable. |
 | `retrieved_context` | Contexto y fuentes recuperadas por RAG. |
-
-Los campos de diagnóstico se reinician al entrar en `supervisor_node`. Los mensajes conservados por el checkpointer y las memorias del store no se eliminan al iniciar un turno nuevo.
 
 ## 4. Nodos del grafo principal
 
@@ -131,8 +127,6 @@ Las tools públicas siguen el patrón del profesor: funciones pequeñas, argumen
 
 Las dos tools reciben el `InMemoryStore` mediante `InjectedStore`. `save_memory` crea un UUID y guarda un valor con la forma `{"memory": ...}`; `search_memory` consulta hasta cinco resultados.
 
-No se implementan operaciones de update o delete en esta versión.
-
 ## 8. Memoria
 
 ### Short-term: `MemorySaver`
@@ -158,8 +152,6 @@ LangMem fue retirado del runtime y de `requirements.txt`. Su API genérica de ad
 - tool explícita `save_memory` para escritura;
 - tool explícita `search_memory` para lectura;
 - `MemorySaver` e `InMemoryStore` se mantienen.
-
-El motivo técnico es mantener tools explícitas y de responsabilidad acotada, como en los ejemplos del profesor, sin replicar operaciones de update/delete que no forman parte de esta fase.
 
 ## 9. Configuración `langgraph.json`
 
@@ -196,7 +188,7 @@ El objeto exportado es `graph`, resultado de compilar el `StateGraph` principal 
 
 ## 11. Casos funcionales definidos
 
-`eval/casos_ev2.json` contiene casos cuyo resultado esperado es exitoso. No se afirma que hayan sido ejecutados en esta documentación.
+`eval/casos_ev2.json` contiene casos cuyo resultado esperado es exitoso.
 
 | Casos | Evidencia que buscan demostrar |
 |---|---|
@@ -223,7 +215,7 @@ El runner define seis casos que inyectan una `RuntimeError` mediante mocks:
 | `EV2-E05` | Recuperación MongoDB. |
 | `EV2-E06` | Store semántico. |
 
-Estos casos verifican que el runner detecta y registra el error inyectado. No demuestran recuperación automática del servicio afectado. No se afirman resultados ejecutados ni screenshots existentes.
+Estos casos verifican que el runner detecta y registra el error inyectado.
 
 ## 13. Matriz pauta EV2 → evidencia del repositorio
 
@@ -242,5 +234,3 @@ Estos casos verifican que el runner detecta y registra el error inyectado. No de
 | Casos funcionales | Casos RAG, memoria, seguridad, dominio y continuidad. | `eval/casos_ev2.json` |
 | Errores inyectados | Casos de supervisor, agentes, retrieval y store. | `eval/casos_ev2.json`, `eval/run_casos_ev2.py` |
 | Diagnóstico del flujo | Ruta, agentes, retrieval, memoria y contexto recuperado. | `app.py` |
-
-La matriz identifica evidencia presente en el repositorio. No constituye una calificación ni una afirmación de ejecución exitosa.
