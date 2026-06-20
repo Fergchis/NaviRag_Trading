@@ -1,4 +1,4 @@
-"""NaviRAG agent package.
+"""Paquete principal de NaviRAG Trading.
 
 Import the compiled graph explicitly from ``agent_app.agent``. Keeping this
 package initializer free of runtime imports avoids creating models, clients,
