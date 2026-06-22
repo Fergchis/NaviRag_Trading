@@ -174,7 +174,7 @@ http://localhost:8501
 
 ## 9. Ejecutar casos EV2
 
-Los casos validan las rutas actuales `FINISH`, `answer_agent`, `memory_agent`, `rag_agent` y `rag_then_answer` sin usar Streamlit ni RAGAS.
+Los casos validan las rutas actuales `FINISH`, `answer_agent`, `memory_agent`, `rag_agent` y `rag_then_answer` directamente por consola, sin usar Streamlit.
 
 ### Si usas `.venv`
 
@@ -187,4 +187,8 @@ Los casos validan las rutas actuales `FINISH`, `answer_agent`, `memory_agent`, `
 ```powershell
 docker run --rm --env-file .env navirag-trading python eval/run_casos_ev2.py
 ```
+
+### Evidencia generada
+
+`eval/resultados_ev2.json` es un snapshot versionado de evidencia de las pruebas EV2. El runner `eval/run_casos_ev2.py` sobrescribe este archivo cada vez que se ejecutan los casos. Antes de commitear resultados nuevos, revisa el diff y confirma que corresponde a una ejecución válida y no contiene información sensible.
 

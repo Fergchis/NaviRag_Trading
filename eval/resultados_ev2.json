@@ -1,0 +1,212 @@
+[
+  {
+    "caso": "EV2-F01",
+    "input": "Explica qué es la volatilidad en trading usando los documentos.",
+    "ruta_esperada": "rag_then_answer",
+    "ruta_observada": "rag_then_answer",
+    "agentes_ejecutados": [
+      "rag_agent",
+      "answer_agent"
+    ],
+    "tools_usadas": [
+      "rag_search"
+    ],
+    "resultado": "PASS",
+    "observacion": "Validación funcional completa."
+  },
+  {
+    "caso": "EV2-F02",
+    "input": "Recupera y muéstrame los pasajes sobre gestión de riesgo.",
+    "ruta_esperada": "rag_agent",
+    "ruta_observada": "rag_agent",
+    "agentes_ejecutados": [
+      "rag_agent"
+    ],
+    "tools_usadas": [
+      "rag_search"
+    ],
+    "resultado": "PASS",
+    "observacion": "Validación funcional completa."
+  },
+  {
+    "caso": "EV2-F03",
+    "input": "Recuerda que prefiero explicaciones breves y sin fórmulas.",
+    "ruta_esperada": "memory_agent",
+    "ruta_observada": "memory_agent",
+    "agentes_ejecutados": [
+      "memory_agent"
+    ],
+    "tools_usadas": [
+      "save_memory"
+    ],
+    "resultado": "PASS",
+    "observacion": "Validación funcional completa."
+  },
+  {
+    "caso": "EV2-F04",
+    "input": "¿Qué tipo de explicaciones prefiero?",
+    "ruta_esperada": "memory_agent",
+    "ruta_observada": "memory_agent",
+    "agentes_ejecutados": [
+      "memory_agent"
+    ],
+    "tools_usadas": [
+      "search_memory"
+    ],
+    "resultado": "PASS",
+    "observacion": "Validación funcional completa."
+  },
+  {
+    "caso": "EV2-F05",
+    "input": "Explícame la gestión de riesgo usando los documentos.",
+    "ruta_esperada": "rag_then_answer",
+    "ruta_observada": "rag_then_answer",
+    "agentes_ejecutados": [
+      "rag_agent",
+      "answer_agent"
+    ],
+    "tools_usadas": [
+      "rag_search"
+    ],
+    "resultado": "PASS",
+    "observacion": "Validación funcional completa."
+  },
+  {
+    "caso": "EV2-F06",
+    "input": "Hola, ¿qué puedes hacer?",
+    "ruta_esperada": "answer_agent",
+    "ruta_observada": "answer_agent",
+    "agentes_ejecutados": [
+      "answer_agent"
+    ],
+    "tools_usadas": [],
+    "resultado": "PASS",
+    "observacion": "Validación funcional completa."
+  },
+  {
+    "caso": "EV2-F07",
+    "input": "¿Debería comprar Bitcoin hoy? Dame una señal concreta.",
+    "ruta_esperada": "answer_agent",
+    "ruta_observada": "answer_agent",
+    "agentes_ejecutados": [
+      "answer_agent"
+    ],
+    "tools_usadas": [],
+    "resultado": "PASS",
+    "observacion": "Validación funcional completa."
+  },
+  {
+    "caso": "EV2-F08",
+    "input": "¿Cómo preparo una masa de pizza?",
+    "ruta_esperada": "FINISH",
+    "ruta_observada": "FINISH",
+    "agentes_ejecutados": [],
+    "tools_usadas": [],
+    "resultado": "PASS",
+    "observacion": "Validación funcional completa."
+  },
+  {
+    "caso": "EV2-F09",
+    "input": "¿Qué dicen los documentos sobre astrología para operaciones intradía?",
+    "ruta_esperada": "rag_then_answer",
+    "ruta_observada": "rag_then_answer",
+    "agentes_ejecutados": [
+      "rag_agent",
+      "answer_agent"
+    ],
+    "tools_usadas": [
+      "rag_search"
+    ],
+    "resultado": "PASS",
+    "observacion": "Validación funcional completa."
+  },
+  {
+    "caso": "EV2-ST01",
+    "input": [
+      "Hola, ¿qué puedes hacer?",
+      "Resume en una frase lo que acabas de explicar."
+    ],
+    "ruta_esperada": [
+      "answer_agent",
+      "answer_agent"
+    ],
+    "ruta_observada": [
+      "answer_agent",
+      "answer_agent"
+    ],
+    "agentes_ejecutados": [
+      [
+        "answer_agent"
+      ],
+      [
+        "answer_agent"
+      ]
+    ],
+    "tools_usadas": [
+      [],
+      []
+    ],
+    "resultado": "PASS",
+    "observacion": "El checkpointer conservó ambos mensajes y los diagnósticos se evaluaron de forma independiente por turno."
+  },
+  {
+    "caso": "EV2-E01",
+    "input": "Inyección de error en supervisor",
+    "ruta_esperada": null,
+    "ruta_observada": null,
+    "agentes_ejecutados": [],
+    "tools_usadas": [],
+    "resultado": "PASS",
+    "observacion": "Valida que el runner detecta y registra de forma controlada el fallo inyectado; no valida recuperación automática real."
+  },
+  {
+    "caso": "EV2-E02",
+    "input": "Inyección de error en rag_agent",
+    "ruta_esperada": "rag_agent",
+    "ruta_observada": null,
+    "agentes_ejecutados": [],
+    "tools_usadas": [],
+    "resultado": "PASS",
+    "observacion": "Valida que el runner detecta y registra de forma controlada el fallo inyectado; no valida recuperación automática real."
+  },
+  {
+    "caso": "EV2-E03",
+    "input": "Inyección de error en memory_agent",
+    "ruta_esperada": "memory_agent",
+    "ruta_observada": null,
+    "agentes_ejecutados": [],
+    "tools_usadas": [],
+    "resultado": "PASS",
+    "observacion": "Valida que el runner detecta y registra de forma controlada el fallo inyectado; no valida recuperación automática real."
+  },
+  {
+    "caso": "EV2-E04",
+    "input": "Inyección de error en answer_agent",
+    "ruta_esperada": "answer_agent",
+    "ruta_observada": null,
+    "agentes_ejecutados": [],
+    "tools_usadas": [],
+    "resultado": "PASS",
+    "observacion": "Valida que el runner detecta y registra de forma controlada el fallo inyectado; no valida recuperación automática real."
+  },
+  {
+    "caso": "EV2-E05",
+    "input": "Inyección de error en retrieval",
+    "ruta_esperada": null,
+    "ruta_observada": null,
+    "agentes_ejecutados": [],
+    "tools_usadas": [],
+    "resultado": "PASS",
+    "observacion": "Valida que el runner detecta y registra de forma controlada el fallo inyectado; no valida recuperación automática real."
+  },
+  {
+    "caso": "EV2-E06",
+    "input": "Inyección de error en semantic_store",
+    "ruta_esperada": null,
+    "ruta_observada": null,
+    "agentes_ejecutados": [],
+    "tools_usadas": [],
+    "resultado": "PASS",
+    "observacion": "Valida que el runner detecta y registra de forma controlada el fallo inyectado; no valida recuperación automática real."
+  }
+]

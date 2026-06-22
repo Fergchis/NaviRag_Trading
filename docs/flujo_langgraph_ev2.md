@@ -202,6 +202,8 @@ El objeto exportado es `graph`, resultado de compilar el `StateGraph` principal 
 | `EV2-F09` | Falta de contexto documental sin invención de contenido. |
 | `EV2-ST01` | Continuidad short-term con el mismo `thread_id`. |
 
+La evidencia versionada de la ejecución se conserva en [eval/resultados_ev2.json](../eval/resultados_ev2.json). El snapshot registra por caso la ruta esperada y observada, los agentes ejecutados, las tools usadas y el resultado `PASS` o `FAIL`; se regenera mediante `eval/run_casos_ev2.py`.
+
 ## 12. Errores inyectados
 
 El runner define seis casos que inyectan una `RuntimeError` mediante mocks:
@@ -233,4 +235,5 @@ Estos casos verifican que el runner detecta y registra el error inyectado.
 | Configuración del grafo | Ruta `./agent_app/agent.py:graph`. | `langgraph.json` |
 | Casos funcionales | Casos RAG, memoria, seguridad, dominio y continuidad. | `eval/casos_ev2.json` |
 | Errores inyectados | Casos de supervisor, agentes, retrieval y store. | `eval/casos_ev2.json`, `eval/run_casos_ev2.py` |
+| Evidencia de ejecución | Snapshot por caso con rutas, agentes, tools y resultado. | `eval/resultados_ev2.json` |
 | Diagnóstico del flujo | Ruta, agentes, retrieval, memoria y contexto recuperado. | `app.py` |
