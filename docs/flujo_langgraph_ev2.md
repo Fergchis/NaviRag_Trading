@@ -60,7 +60,7 @@ No existe un planner lineal separado. La planificación se expresa mediante la s
 |---|---|---|
 | `supervisor` | `supervisor_node` | Usa `SUPERVISOR_SYSTEM_PROMPT` y `with_structured_output(Route)` para seleccionar la ruta. |
 | `rag_agent` | `rag_node` | Resume la tarea, invoca el subgrafo RAG, recoge `ToolMessage` y conserva fuentes. |
-| `memory_agent` | `memory_node` | Invoca `save_memory` o `search_memory` y finaliza. |
+| `memory_agent` | `memory_node` | Invoca `manage_memory` o `search_memory` y finaliza. |
 | `answer_agent` | `answer_node` | Redacta la respuesta final usando el contexto disponible y aplica seguridad financiera. |
 
 Antes de delegar una tarea de RAG, memoria o respuesta final, `summarize_for` genera una instrucción acotada para el agente correspondiente.
@@ -117,15 +117,15 @@ Edges internos:
 
 ## 7. Tools
 
-Las tools públicas siguen el patrón del profesor: funciones pequeñas, argumentos tipados, docstring y decorador `@tool` en `agent_app/tools.py`.
+Las tools públicas siguen el patrón del profesor: `rag_search` se define como función con `@tool` y las tools de memoria se crean con LangMem.
 
 | Tool | Agente | Responsabilidad |
 |---|---|---|
 | `rag_search(query)` | `rag_agent` | Genera el embedding, ejecuta MongoDB Atlas Vector Search y devuelve fragmentos con metadatos. |
-| `save_memory(memory)` | `memory_agent` | Guarda información útil y estable bajo el namespace del `user_id`. |
-| `search_memory(query)` | `memory_agent` | Busca información del usuario bajo el mismo namespace. |
+| `manage_memory` | `memory_agent` | Guarda o actualiza información útil y estable bajo el namespace del `user_id`. |
+| `search_memory` | `memory_agent` | Busca información del usuario bajo el mismo namespace. |
 
-Las dos tools reciben el `InMemoryStore` mediante `InjectedStore`. `save_memory` crea un UUID y guarda un valor con la forma `{"memory": ...}`; `search_memory` consulta hasta cinco resultados.
+Las tools de memoria se crean con `create_manage_memory_tool(namespace)` y `create_search_memory_tool(namespace)`, siguiendo Clase 2.2.
 
 ## 8. Memoria
 
@@ -138,20 +138,23 @@ El grafo principal se compila con `MemorySaver`. Streamlit envía `thread_id` de
 El store se crea con el cliente de embeddings de GitHub Models y se entrega al agente de memoria y al grafo compilado. Las memorias usan el namespace:
 
 ```text
-("agent_memories", user_id)
+("agent_memories", "{user_id}")
 ```
 
 Streamlit conserva `user_id` al iniciar una conversación nueva. Esto permite recuperar memorias entre hilos mientras el proceso siga activo.
 
 `InMemoryStore` no ofrece persistencia durable: su contenido se pierde al reiniciar el proceso.
 
-### Eliminación de LangMem
+### LangMem reactivo Clase 2.2
 
-LangMem fue retirado del runtime y de `requirements.txt`. Su API genérica de administración se sustituyó por la implementación mínima necesaria:
+La memoria long-term usa las factories de LangMem vistas en Clase 2.2:
 
-- tool explícita `save_memory` para escritura;
-- tool explícita `search_memory` para lectura;
-- `MemorySaver` e `InMemoryStore` se mantienen.
+- `create_manage_memory_tool(namespace)` para escritura o actualización explícita;
+- `create_search_memory_tool(namespace)` para lectura explícita;
+- `namespace = ("agent_memories", "{user_id}")` para separar memorias por usuario;
+- `MemorySaver`, `InMemoryStore` y `GitHubModelsEmbeddings` se mantienen.
+
+No se usa recuperación proactiva de memoria; el supervisor debe enrutar a `memory_agent` y el agente decide entre sus tools según la solicitud del usuario.
 
 ## 9. Configuración `langgraph.json`
 
@@ -224,10 +227,10 @@ Estos casos verifican que el runner detecta y registra el error inyectado.
 | Criterio EV2 | Evidencia | Archivo |
 |---|---|---|
 | Herramienta de consulta | `rag_search` con MongoDB Atlas Vector Search. | `agent_app/tools.py` |
-| Herramienta de escritura | `save_memory` sobre `InMemoryStore`. | `agent_app/tools.py` |
+| Herramienta de escritura | `manage_memory` de LangMem sobre `InMemoryStore`. | `agent_app/tools.py` |
 | Razonamiento y coordinación | Supervisor estructurado, reformulación y agente de respuesta. | `agent_app/agent.py`, `agent_app/prompts.py` |
 | Memoria short-term | `MemorySaver` asociado a `thread_id`. | `agent_app/agent.py`, `app.py` |
-| Memoria long-term | `InMemoryStore`, namespace por `user_id`, `save_memory` y `search_memory`. | `agent_app/agent.py`, `agent_app/tools.py` |
+| Memoria long-term | `InMemoryStore`, namespace por `user_id`, `manage_memory` y `search_memory`. | `agent_app/agent.py`, `agent_app/tools.py` |
 | Recuperación de contexto | Embeddings, `$vectorSearch`, metadatos y fuentes. | `agent_app/tools.py`, `agent_app/utils/embeddings.py` |
 | Planificación | Rutas directas y compuestas seleccionadas por `Route`. | `agent_app/agent.py` |
 | Decisión adaptativa | `add_conditional_edges` y funciones de routing. | `agent_app/agent.py` |

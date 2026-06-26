@@ -72,6 +72,7 @@ query_llm = get_chat_model()
 
 github_embeddings = GitHubModelsEmbeddings()
 store = InMemoryStore(index={"dims": 1536, "embed": github_embeddings})
+memory_tool_names = {tool.name for tool in memory_tools}
 
 memory_agent = create_react_agent(
     llm,
@@ -157,7 +158,7 @@ def summarize_for(messages: list, role: str, user_query: str) -> HumanMessage:
         ),
         "memory": (
             "Resume si debe guardarse o buscarse información del usuario. Incluye solo "
-            "la información necesaria para usar save_memory o search_memory."
+            "la información necesaria para usar manage_memory o search_memory."
         ),
         "answer": (
             "Prepara la tarea de respuesta a la consulta original. Incluye únicamente los "
@@ -241,7 +242,7 @@ def memory_node(state: AgentState, config: RunnableConfig) -> dict:
     result = memory_agent.invoke({"messages": [summary]}, config)
     messages = result["messages"]
     memory_used = any(
-        call["name"] in {"save_memory", "search_memory"}
+        call["name"] in memory_tool_names
         for message in messages
         if isinstance(message, AIMessage)
         for call in message.tool_calls

@@ -29,7 +29,7 @@
     "pregunta": "Recuerda que prefiero explicaciones breves y sin fórmulas.",
     "ruta_esperada": "memory_agent",
     "agentes_esperados": ["memory_agent"],
-    "tools_esperadas": ["save_memory"],
+    "tools_esperadas": ["manage_memory"],
     "respuesta_esperada": "Confirma que la preferencia fue guardada.",
     "retrieval_esperado": false,
     "memoria_esperada": true,

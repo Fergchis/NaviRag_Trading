@@ -15,7 +15,7 @@ Usuario
               └── answer_agent  → respuesta final
 ```
 
-El supervisor selecciona `rag_agent`, `memory_agent`, `answer_agent`, `rag_then_answer` o `FINISH`. El agente RAG contiene un subgrafo con reformulación de consulta, `ToolNode` y `rag_search`. El agente de memoria usa `save_memory` y `search_memory`. La memoria conversacional usa `MemorySaver` y la memoria entre conversaciones usa `InMemoryStore`.
+El supervisor selecciona `rag_agent`, `memory_agent`, `answer_agent`, `rag_then_answer` o `FINISH`. El agente RAG contiene un subgrafo con reformulación de consulta, `ToolNode` y `rag_search`. El agente de memoria usa las tools de LangMem `manage_memory` y `search_memory`. La memoria conversacional usa `MemorySaver` y la memoria entre conversaciones usa `InMemoryStore`.
 
 El supervisor funciona como planificador por turno: interpreta la intención y selecciona una ruta directa o compuesta. Los edges condicionales adaptan el recorrido para ejecutar solo los agentes necesarios. La separación entre recuperación, memoria y respuesta mantiene responsabilidades acotadas; MongoDB aporta contexto documental y las dos capas de memoria cubren continuidad dentro del hilo y entre hilos mientras el proceso siga activo.
 
