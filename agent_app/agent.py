@@ -44,11 +44,9 @@ class AgentState(TypedDict, total=False):
     user_query: str
     next: str
     executed_agents: list[str]
-    final_agent: str
     retrieval_used: bool
     memory_used: bool
     financial_rejection: bool
-    retrieved_context: str
 
 
 class Route(BaseModel):
@@ -194,10 +192,8 @@ def supervisor_node(state: AgentState) -> dict:
     updates: dict = {
         "next": result.next,
         "executed_agents": [],
-        "final_agent": "supervisor",
         "retrieval_used": False,
         "memory_used": False,
-        "retrieved_context": "",
         "financial_rejection": result.financial_rejection,
     }
     last_human = next(
@@ -231,9 +227,7 @@ def rag_node(state: AgentState, config: RunnableConfig) -> dict:
     return {
         "messages": messages,
         "executed_agents": _append_agent(state, "rag_agent"),
-        "final_agent": "rag_agent",
         "retrieval_used": bool(contexts),
-        "retrieved_context": "\n\n".join(contexts),
     }
 
 
@@ -251,7 +245,6 @@ def memory_node(state: AgentState, config: RunnableConfig) -> dict:
     return {
         "messages": messages,
         "executed_agents": _append_agent(state, "memory_agent"),
-        "final_agent": "memory_agent",
         "memory_used": memory_used,
     }
 
@@ -263,7 +256,6 @@ def answer_node(state: AgentState, config: RunnableConfig) -> dict:
     return {
         "messages": result["messages"],
         "executed_agents": _append_agent(state, "answer_agent"),
-        "final_agent": "answer_agent",
     }
 
 

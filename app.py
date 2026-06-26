@@ -36,7 +36,6 @@ def render_assistant_diagnostics(message: dict) -> None:
             "Agentes ejecutados: "
             + (", ".join(diagnostics["executed_agents"]) or "-")
         )
-        st.write(f"Agente final: {diagnostics['final_agent']}")
         st.write(f"Retrieval: {'sí' if diagnostics['retrieval_used'] else 'no'}")
         st.write(f"Memoria: {'sí' if diagnostics['memory_used'] else 'no'}")
         st.write(
@@ -44,10 +43,6 @@ def render_assistant_diagnostics(message: dict) -> None:
             f"{'sí' if diagnostics['financial_rejection'] else 'no'}"
         )
 
-        if diagnostics["retrieved_context"]:
-            st.divider()
-            st.caption("Fuentes y contexto recuperado")
-            st.text(diagnostics["retrieved_context"])
 
 
 st.set_page_config(page_title=APP_NAME)
@@ -119,13 +114,11 @@ if query := st.chat_input("Pregunta sobre los PDFs de trading..."):
         diagnostics = {
             "route": result.get("next", "unknown"),
             "executed_agents": result.get("executed_agents", []),
-            "final_agent": result.get("final_agent", "unknown"),
             "retrieval_used": bool(result.get("retrieval_used", False)),
             "memory_used": bool(result.get("memory_used", False)),
             "financial_rejection": bool(
                 result.get("financial_rejection", False)
             ),
-            "retrieved_context": result.get("retrieved_context", ""),
         }
 
         st.markdown(answer)

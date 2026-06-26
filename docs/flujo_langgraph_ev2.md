@@ -48,11 +48,9 @@ No existe un planner lineal separado. La planificación se expresa mediante la s
 | `user_query` | Consulta original del turno. |
 | `next` | Ruta seleccionada por el supervisor. |
 | `executed_agents` | Agentes ejecutados durante el turno. |
-| `final_agent` | Último agente que produjo una salida. |
 | `retrieval_used` | Indica uso de recuperación documental. |
 | `memory_used` | Indica uso de memoria. |
 | `financial_rejection` | Indica rechazo de una solicitud financiera accionable. |
-| `retrieved_context` | Contexto y fuentes recuperadas por RAG. |
 
 ## 4. Nodos del grafo principal
 
@@ -186,7 +184,7 @@ El objeto exportado es `graph`, resultado de compilar el `StateGraph` principal 
 4. El supervisor selecciona la ruta.
 5. Los nodos ejecutados actualizan mensajes y diagnósticos.
 6. Streamlit muestra la respuesta final.
-7. Ruta, agentes, retrieval, memoria y fuentes quedan disponibles dentro del expander `Detalles técnicos`.
+7. Ruta, agentes, retrieval, memoria y rechazo financiero seguro quedan disponibles dentro del expander `Detalles técnicos`.
 8. El manejo de errores presenta un mensaje específico para rate limits y uno general para errores de configuración o ejecución.
 
 ## 11. Casos funcionales definidos
@@ -239,4 +237,4 @@ Estos casos verifican que el runner detecta y registra el error inyectado.
 | Casos funcionales | Casos RAG, memoria, seguridad, dominio y continuidad. | `eval/casos_ev2.json` |
 | Errores inyectados | Casos de supervisor, agentes, retrieval y store. | `eval/casos_ev2.json`, `eval/run_casos_ev2.py` |
 | Evidencia de ejecución | Snapshot por caso con rutas, agentes, tools y resultado. | `eval/resultados_ev2.json` |
-| Diagnóstico del flujo | Ruta, agentes, retrieval, memoria y contexto recuperado. | `app.py` |
+| Diagnóstico del flujo | Ruta, agentes, retrieval, memoria y rechazo financiero seguro. | `app.py` |
