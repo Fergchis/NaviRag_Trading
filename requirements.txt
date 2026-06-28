@@ -11,3 +11,4 @@ langchain-openai
 langgraph
 openai
 langmem
+supabase>=2,<3

@@ -25,10 +25,9 @@ logs/*
 referencias_clase/
 _referencias_clase/
 
-docs/*
-!docs/flujo_langgraph_ev2.md
 docs/_archivo_pre_cierre_v2/
 
 *.log
 streamlit_stdout.log
 streamlit_stderr.log
+PowerBI.pbix
